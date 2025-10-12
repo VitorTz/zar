@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zar - URL Shortener</title>
+    <style>
+        /* --- Variaveis de Estilo (Fácil de Customizar) --- */
+        :root {
+            --cor-primaria: #007BFF;       /* Azul vibrante para botões e foco */
+            --cor-primaria-hover: #0056b3; /* Azul mais escuro para hover */
+            --cor-fundo: #f8f9fa;          /* Cinza muito claro para o fundo da página */
+            --cor-container: #ffffff;     /* Branco para o card principal */
+            --cor-texto: #212529;         /* Preto suave para o texto principal */
+            --cor-texto-secundario: #6c757d; /* Cinza para labels e textos de apoio */
+            --cor-borda: #dee2e6;         /* Cinza claro para bordas */
+            --cor-sucesso: #e9f7ef;        /* Fundo verde claro para a caixa de resultado */
+            --cor-erro: #fdeeee;          /* Fundo vermelho claro para a caixa de erro */
+            --sombra: 0 4px 12px rgba(0, 0, 0, 0.08); /* Sombra suave para o container */
+            --raio-borda: 12px;           /* Bordas mais arredondadas */
+            --fonte-principal: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        /* --- Reset e Estilos Globais --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--fonte-principal);
+            background-color: 'white';
+            color: var(--cor-texto);
+            display: grid;
+            place-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        /* --- Container Principal --- */
+        .container {
+            background-color: var(--cor-container);
+            padding: 2.5rem;
+            border-radius: var(--raio-borda);
+            box-shadow: var(--sombra);
+            width: 100%;
+            max-width: 550px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.25rem;
+            font-weight: 700;
+            margin-bottom: 2.5rem;
+        }
+
+        /* --- Formulário e Inputs --- */
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--cor-texto-secundario);
+        }
+
+        input[type="url"],
+        input[type="text"] {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            font-size: 1rem;
+            border: 1px solid var(--cor-borda);
+            border-radius: 8px; /* Borda um pouco menos redonda que o container */
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        input[type="url"]:focus,
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--cor-primaria);
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
+        }
+
+        /* --- Botões --- */
+        button {
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            padding: 0.9rem 1.5rem;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+        }
+
+        button[type="submit"] {
+            background-color: var(--cor-primaria);
+            color: white;
+        }
+
+        button[type="submit"]:hover {
+            background-color: var(--cor-primaria-hover);
+        }
+
+        button:active {
+            transform: scale(0.98); /* Efeito de clique */
+        }
+
+        /* --- Seção de Resultado --- */
+        .result {
+            display: none; /* Controlado via JavaScript para aparecer quando houver resultado */
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background-color: var(--cor-sucesso);
+            border-radius: var(--raio-borda);
+            text-align: left;
+            border: 1px solid #c3e6cb;
+        }
+
+        .result-title {
+            font-weight: 600;
+            color: #155724;
+            margin-bottom: 1rem;
+        }
+
+        .short-url {
+            display: flex;
+        }
+
+        #shortUrl {
+            flex-grow: 1;
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+            background-color: #fff;
+            border-right: none;
+        }
+
+        .copy-btn {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+            background-color: #fff;
+            border: 1px solid var(--cor-borda);
+            color: var(--cor-texto-secundario);
+        }
+
+        .copy-btn:hover {
+            background-color: #f8f9fa;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid #c3e6cb;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--cor-texto-secundario);
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        /* --- Seção de Erro --- */
+        .error {
+            display: none; /* Controlado via JavaScript */
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border-radius: var(--raio-borda);
+            background-color: var(--cor-erro);
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1> Zar - URL Shortener</h1>        
+        
+        <form id="shortenForm">
+            <div class="input-group">
+                <label for="url">Cole sua URL longa aqui:</label>
+                <input 
+                    type="url" 
+                    id="url" 
+                    name="url" 
+                    placeholder="https://exemplo.com/sua-url-muito-longa"
+                    required
+                >
+            </div>
+            
+            <button type="submit" id="submitBtn">
+                Encurtar URL
+            </button>
+        </form>
+        
+        <div class="result" id="result">
+            <div class="result-title">✅ URL encurtada com sucesso!</div>
+            <div class="short-url">
+                <input type="text" id="shortUrl" readonly>
+                <button class="copy-btn" id="copyBtn">Copiar</button>
+            </div>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-label">Cliques</div>
+                    <div class="stat-value" id="clicks">0</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Código</div>
+                    <div class="stat-value" id="shortCode">-</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="error" id="error"></div>
+    </div>
+    
+    <script src="{{ url_for('static', path='/script.js') }}"></script>
+</body>
+</html>

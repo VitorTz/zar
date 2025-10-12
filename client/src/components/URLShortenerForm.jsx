@@ -1,0 +1,44 @@
+import React, { useState } from 'react';
+import api from '../services/api';
+
+const URLShortenerForm = ({ onShorten }) => {
+  const [url, setUrl] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const response = await api.post('/', { url });
+      onShorten(response.data);
+      setUrl('');
+    } catch (err) {
+      setError('Falha ao encurtar a URL. Verifique se é uma URL válida.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="form-container">
+      <form onSubmit={handleSubmit}>
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="Cole sua URL aqui"
+          required
+        />
+        <button type="submit" disabled={loading}>
+          {loading ? 'Encurtando...' : 'Encurtar'}
+        </button>
+      </form>
+      {error && <p className="error-message">{error}</p>}
+    </div>
+  );
+};
+
+export default URLShortenerForm;

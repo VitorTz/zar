@@ -1,0 +1,171 @@
+/* src/components/URLList.css */
+.url-list-container {
+  margin-top: 3rem;
+  text-align: left;
+}
+
+.url-list-container h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  color: var(--text-primary-color);
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.url-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.url-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem; /* Aumentado o espaço entre os itens */
+}
+
+/* --- Layout Principal do Item da Lista --- */
+.url-item {
+  background-color: var(--surface-color);
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: 1.5rem; /* Espaço entre o QR Code e os detalhes */
+  transition: box-shadow 0.3s, transform 0.3s;
+}
+
+.url-item:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px var(--shadow-color);
+}
+
+/* --- Estilo do QR Code --- */
+.qr-code-container {
+  width: 256px;
+  height: 256px;
+  padding: 5px;
+  background-color: #fff;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.qr-code-container img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 4px;
+}
+
+.url-item:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px var(--shadow-color);
+}
+
+/* --- Contêiner para Informações e Ações --- */
+.url-details {
+  flex-grow: 1; /* Faz esta seção ocupar o espaço restante */
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0; /* Corrige problemas de overflow do flexbox */
+}
+
+.url-info {
+  flex: 1;
+  min-width: 250px;
+  padding-right: 1rem;
+}
+
+.original-url {
+  font-size: 0.9rem;
+  font-weight: 300;
+  color: var(--text-secondary-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0 0 0.5rem 0;
+  max-width: 95%;
+}
+
+.short-url {
+  font-weight: 600;
+  color: var(--primary-color);
+  text-decoration: none;
+  font-size: 1.1rem;
+}
+
+
+.url-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem; /* Reduzido o espaço entre os botões */
+  font-size: 0.9rem;
+}
+
+.url-actions button {
+  padding: 6px 14px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  background-color: transparent;
+  color: var(--primary-color);
+  border: 1px solid var(--primary-color);
+}
+
+.url-actions button:hover {
+  background-color: var(--primary-color);
+  color: var(--surface-color);
+  transform: none; /* Desativa o efeito de subida */
+}
+
+
+.url-actions .delete-button {
+  background-color: transparent;
+  color: var(--danger-color);
+  border: 1px solid var(--danger-color);
+}
+.url-actions .delete-button:hover {
+  background-color: var(--danger-color);
+  color: var(--surface-color);
+}
+
+/* --- Media Query para Dispositivos Móveis --- */
+@media (max-width: 768px) {
+  .url-item {
+    /* Empilha o QR Code e os detalhes verticalmente */
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 1rem;
+  }
+  
+  .original-url {
+    white-space: normal;   /* Permite que o texto quebre a linha */
+    word-break: break-all; /* Força a quebra de URLs longas sem espaços */
+    max-width: 100%;       /* Garante que o elemento use a largura total */
+  }
+
+  .qr-code-container {
+    /* Centraliza o QR Code no topo */
+    margin: 0 auto;
+  }
+
+  .url-info {
+    text-align: center;
+    width: 100%;
+    padding-right: 0;
+  }
+
+  .url-actions {
+    width: 100%;
+    justify-content: center;
+  }
+}

@@ -1,0 +1,220 @@
+/* src/components/Navbar.css */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2rem;
+  height: 70px;
+  background-color: var(--surface-color);
+  border-bottom: 1px solid var(--border-color);
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  box-sizing: border-box;
+  z-index: 1000;
+}
+
+.navbar-brand a {
+  font-weight: 600;
+  font-size: 1.75rem;
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.navbar-links {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+
+.navbar-user-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.navbar-user-email {
+  color: var(--text-primary-color);
+  font-size: 0.9rem;
+  background-color: var(--background-color);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.navbar-links a {
+  text-decoration: none;
+  color: var(--text-primary-color);
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: color 0.3s, background-color 0.3s;
+}
+
+.navbar-links a:hover {
+  color: var(--primary-color);
+  background-color: rgba(106, 90, 249, 0.08);
+}
+
+
+.nav-button,
+.logout-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: inherit;  
+  text-decoration: none;
+  color: var(--text-primary-color);
+  font-weight: 500;
+  font-size: 1rem;
+  padding: 8px 16px;
+  border-radius: 8px;
+  transition: color 0.3s, background-color 0.3s;
+}
+
+
+.nav-button:hover,
+.logout-button:hover {
+  color: var(--primary-color);
+  background-color: rgba(106, 90, 249, 0.08);
+}
+
+.nav-button:hover:not(:disabled),
+.logout-button:hover:not(:disabled) {
+  color: var(--primary-color);
+  background-color: rgba(106, 90, 249, 0.08);
+  transform: none;
+}
+
+/* Ícone Hambúrguer */
+.hamburger-menu {
+  display: none; /* Escondido por padrão */
+  flex-direction: column;
+  justify-content: space-around;
+  width: 2rem;
+  height: 2rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  z-index: 1010;
+}
+
+.hamburger-menu:hover:not(:disabled) {
+  background-color: transparent;
+  transform: translateY(-2px);
+}
+
+.hamburger-menu span {
+  width: 2rem;
+  height: 0.25rem;
+  background: var(--text-primary-color);
+  border-radius: 10px;
+  transition: all 0.3s linear;
+  position: relative;
+  transform-origin: 1px;
+}
+
+/* Menu Lateral */
+.mobile-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  background: var(--surface-color);
+  height: 100vh;
+  width: 100%;
+  text-align: center;
+  position: fixed;
+  top: 0;
+  right: -100%; /* Começa fora da tela */
+  transition: transform 0.3s ease-in-out;
+  z-index: 1005;
+}
+
+.mobile-menu.open {
+  transform: translateX(-100%); /* Desliza para dentro da tela */
+}
+
+
+.mobile-menu .navbar-user-section {
+  flex-direction: column;
+}
+
+/* Novo contêiner que agrupa o e-mail e o ícone de logout */
+.email-logout-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem; /* Pequeno espaço entre o texto e o ícone */
+  background-color: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  /* Espaçamento interno: mais à esquerda, menos à direita para acomodar o botão */
+  padding: 2px 4px 2px 12px;
+}
+
+/* Removemos a borda e o fundo do span de e-mail, pois agora estão no wrapper */
+.navbar-user-email {
+  color: var(--text-secondary-color);
+  font-size: 0.9rem;
+  background-color: transparent;
+  padding: 0;
+  border: none;
+}
+
+/* Estilo do novo botão de ícone minimalista */
+.icon-logout-button {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s, transform 0.3s;
+}
+
+
+/* Estilo do SVG dentro do botão */
+.icon-logout-button svg {
+  width: 16px;
+  height: 16px;
+  stroke: var(--danger-color);
+  stroke-width: 2.5;
+}
+
+/* Efeito de hover sutil */
+.icon-logout-button:hover {    
+  transform: translateX(2px);
+}
+
+
+.nav-button.active {
+  color: var(--primary-hover-color);
+  font-weight: 700; /* Opcional: Deixa o texto em negrito para dar mais destaque */
+}
+
+/* --- MEDIA QUERY PARA CELULAR --- */
+@media (max-width: 768px) {
+  .navbar-links {
+    display: none;
+  }
+
+  .hamburger-menu {
+    display: flex;
+  }
+
+  .navbar-brand .brand-suffix {
+    display: none;
+  }
+  
+  .navbar {
+    padding: 0 1rem;
+  }
+}
