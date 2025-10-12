@@ -1,7 +1,14 @@
-/* src/App.css */
-main {
-  /* Espaço para a barra de navegação fixa */
-  padding-top: 100px;
+
+main {  
+  flex: 1 0 auto;
+  padding-top: 50px;
+}
+
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh; /* Garante que o container ocupe a altura inteira da tela */
 }
 
 .container {
@@ -72,12 +79,12 @@ button {
   transition: background-color 0.3s, transform 0.2s;
 }
 
-button:hover:not(:disabled) {
+.button:hover:not(:disabled) {
   background-color: var(--primary-hover-color);
   transform: translateY(-2px);
 }
 
-button:disabled {
+.button:disabled {
   background-color: #b3aee6;
   cursor: not-allowed;
 }
@@ -91,7 +98,42 @@ button:disabled {
   font-size: 0.9rem;
 }
 
-/* Ajustes responsivos */
+/* Wrapper para o input e o botão */
+.password-input-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+
+/* Garante que o input ocupe todo o espaço do wrapper */
+.password-input-wrapper input {
+  width: 100%;
+  padding-right: 40px; /* Adiciona espaço à direita para o botão não sobrepor o texto */
+}
+
+/* Botão de alternância */
+.password-toggle-button {
+  position: absolute;
+  right: 10px; /* Posição do botão dentro do input */
+  
+  /* Estilo minimalista */
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888; /* Cor do ícone */
+}
+
+.password-toggle-button:hover {  
+  transform: translateY(-2px);
+}
+
+
 @media (max-width: 768px) {
   .container, .auth-container {
     padding: 1.5rem;

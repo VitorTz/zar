@@ -1,16 +1,26 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import api from '../services/api';
+import { ZarUser } from '../model/User';
 
 const AuthContext = createContext(null);
 
-export const useAuth = () => useContext(AuthContext);
 
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+export const useAuth = (): {
+  user: ZarUser | null;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<any>;
+  signup: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+} => useContext(AuthContext as any);
+
+
+export const AuthProvider = ({ children }: {children: any}) => {
+  
+  const [user, setUser] = useState<ZarUser | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // Verifica se o usuário já tem uma sessão ativa ao carregar a página
+    
     const checkUser = async () => {
       try {
         const response = await api.get('/auth/me');
@@ -24,13 +34,13 @@ export const AuthProvider = ({ children }) => {
     checkUser();
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (email: string, password: string) => {
     const response = await api.post('/auth/login', { email, password });
     setUser(response.data);
     return response.data;
   };
 
-  const signup = async (email, password) => {
+  const signup = async (email: string, password: string) => {
     await api.post('/auth/signup', { email, password });
   };
 
@@ -44,7 +54,13 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const value = {
+  const value: {
+    user: ZarUser | null;
+    loading: boolean;
+    login: (email: string, password: string) => Promise<any>;
+    signup: (email: string, password: string) => Promise<void>;
+    logout: () => Promise<void>;
+} = {
     user,
     loading,
     login,
@@ -53,7 +69,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={value as any}>
       {!loading && children}
     </AuthContext.Provider>
   );

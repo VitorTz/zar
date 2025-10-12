@@ -8,6 +8,10 @@ class User(BaseModel):
     id: str
     email: str
     last_login_at: Optional[str] = None
+    is_active: bool
+    is_verified: bool
+    last_login_at: str
+    updated_at: str
     created_at: str
 
 
@@ -43,12 +47,15 @@ class UserLoginAttempt(BaseModel):
 
 class UserSession(BaseModel):
 
+    user_id: str
     issued_at: str
     expires_at: str
     revoked: bool
+    revoked_at: Optional[str]
     device_name: Optional[str]
     device_ip: str
     user_agent: Optional[str]
+    last_used_at: str
 
 
 class UserSessionPagination(BaseModel):

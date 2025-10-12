@@ -1,10 +1,11 @@
-// src/components/Navbar.js
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { ZarUser } from '../model/User';
 import './Navbar.css';
 
 const Navbar = () => {
+
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -15,7 +16,7 @@ const Navbar = () => {
     setIsMenuOpen(!isMenuOpen);
   };
 
-  const handleNavigate = (path) => {
+  const handleNavigate = (path: string) => {
     navigate(path);
     setIsMenuOpen(false);
   };
@@ -26,7 +27,7 @@ const Navbar = () => {
     setIsMenuOpen(false);
   };
   
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path: string) => location.pathname === path;
 
   const statsPath = '/stats'; 
   const homePath = '/';
@@ -38,20 +39,9 @@ const Navbar = () => {
     <>
       {user ? (
         <div className="navbar-user-section">
-          <button className={`nav-button ${isActive(homePath) ? 'active' : ''}`} onClick={() => handleNavigate(homePath)}> Home </button>
-          <button 
-            className={`nav-button ${isActive(dashboardPath) ? 'active' : ''}`} 
-            onClick={() => handleNavigate(dashboardPath)}
-          >
-            Dashboard
-          </button>          
-          
-          <button 
-            className={`nav-button ${isActive(statsPath) ? 'active' : ''}`} 
-            onClick={() => handleNavigate(statsPath)}
-          >
-            Stats
-          </button>
+          <button className={`nav-button ${isActive(homePath) ? 'active' : ''}`} onClick={() => handleNavigate(homePath)}> Home </button>          
+          <button className={`nav-button ${isActive(dashboardPath) ? 'active' : ''}`} onClick={() => handleNavigate(dashboardPath)}> Dashboard </button>
+          <button className={`nav-button ${isActive(statsPath) ? 'active' : ''}`} onClick={() => handleNavigate(statsPath)}> Stats </button>
           
           <div className="email-logout-wrapper">
             <span className="navbar-user-email">{user.email}</span>

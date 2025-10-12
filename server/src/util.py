@@ -1,12 +1,14 @@
 from src.perf.system_monitor import get_monitor
 from src.schemas.client_info import ClientInfo
 from src.constants import Constants
+from src.globals import Globals
 from fastapi import Request
 from pathlib import Path
 from typing import Any
 from asyncpg import Connection
 from PIL import Image
 from src.s3 import S3
+import httpx
 import uuid
 import segno
 import random
@@ -194,3 +196,43 @@ async def create_qrcode(data: str):
     url = await S3().upload_qrcode(path, random_id)
     os.remove(str(path))
     return url
+
+
+async def is_url_safe(url: str) -> bool:
+    cache_key = f"safe_browsing:{url}"
+    
+    cached = await Globals.redis_client.get(cache_key)
+    if cached is not None:
+        return cached == "safe"
+    
+    body = {
+        "client": {"clientId": "fastapi-url-shortener", "clientVersion": "1.0"},
+        "threatInfo": {
+            "threatTypes": [
+                "MALWARE",
+                "SOCIAL_ENGINEERING",
+                "UNWANTED_SOFTWARE",
+                "POTENTIALLY_HARMFUL_APPLICATION",
+            ],
+            "platformTypes": ["ANY_PLATFORM"],
+            "threatEntryTypes": ["URL"],
+            "threatEntries": [{"url": url}],
+        },
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.post(Constants.SAFE_BROWSING_URL, json=body)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if data.get("matches"):
+                await Globals.redis_client.setex(cache_key, Constants.SAFE_CACHE_TTL, "unsafe")
+                return False
+
+            await Globals.redis_client.setex(cache_key, Constants.SAFE_CACHE_TTL, "safe")
+            return True
+
+    except httpx.RequestError as e:
+        print(e)
+        return False

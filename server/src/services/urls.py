@@ -1,20 +1,18 @@
 from fastapi.exceptions import HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi import Request, status
 from asyncpg import Connection
-from src.schemas.urls import URLResponse, URLStats
+from src.schemas.urls import URLResponse, URLCreate
 from src.schemas.user import User
 from src.tables import urls as urls_table
 from src.globals import Globals
 from user_agents import parse
 from src import util
-from uuid import UUID
 
 
 async def get_urls(request: Request, limit: int, offset: int, conn: Connection):
     base_url = str(request.base_url).rstrip('/')
-    total: int = await urls_table.count_urls(conn)    
-    results = await urls_table.get_url_pages(base_url, limit, offset, conn)
+    total, results = await urls_table.get_url_pages(base_url, limit, offset, conn)
     response = {
         "total": total,
         "limit": limit,
@@ -26,39 +24,33 @@ async def get_urls(request: Request, limit: int, offset: int, conn: Connection):
     return response
 
 
-async def shorten(original_url: str, request: Request, conn: Connection, user: User | None = None):
-    base_url = util.extract_base_url(request)
-    r: dict | None = await urls_table.get_url_from_original_url(original_url, conn)
+async def shorten(url: URLCreate, request: Request, conn: Connection, user: User | None = None):
+    base_url: str = util.extract_base_url(request)
+    original_url = str(url.url)
+
+    if not await util.is_url_safe(original_url):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL maliciosa detectada pela Google Safe Browsing API.")
     
-    if r:
-        if user is not None:
-            await urls_table.create_user_url(user.id, r['id'], conn)
+    if not user:
+        url_response: URLResponse | None = await urls_table.get_anonymous_url(original_url, base_url, conn)
+    else:
+        url_response: URLResponse | None = await urls_table.get_user_url(original_url, base_url, user.id, conn)
 
-        return URLResponse(
-            id=r['id'],
-            original_url=r['original_url'],
-            short_url=f"{base_url}/{r['short_code']}",
-            short_code=r['short_code'],
-            clicks=r['clicks'],
-            qr_code_url=r['qr_code_url']
-        )
-    
-    new_url: dict = await urls_table.create_url(original_url, conn)
+    is_new_url = url_response is None
 
-    if user is not None:
-        await urls_table.create_user_url(user.id, new_url['id'], conn)
+    if is_new_url and user is None:
+        url_response: URLResponse = await urls_table.create_anonymous_url(url_response, base_url, conn)
+    elif is_new_url and user is not None:
+        url_response: URLResponse = await urls_table.create_user_url(url, user, base_url, conn)
 
-    return URLResponse(
-        id=new_url['id'],
-        original_url=new_url['original_url'],
-        short_url=f"{base_url}/{new_url['short_code']}",
-        short_code=new_url['short_code'],
-        clicks=new_url['clicks'],
-        qr_code_url=new_url['qr_code_url']
-    )
+    if is_new_url:
+        qrcode_url: str = await util.create_qrcode(url_response.short_url)
+        await urls_table.set_url_qrcode(url_response.short_code, qrcode_url, conn)
+
+    return JSONResponse(url_response.model_dump())
 
 
-async def log_click_event(url_id: UUID, request: Request, conn: Connection):    
+async def register_click_event(short_code: str, request: Request, conn: Connection):    
     user_agent_string = request.headers.get("user-agent", "")
     user_agent = parse(user_agent_string)
     
@@ -87,7 +79,7 @@ async def log_click_event(url_id: UUID, request: Request, conn: Connection):
         device_type = 'unknown'    
 
     await urls_table.create_url_analytic(
-        url_id,
+        short_code,
         ip_address,
         country_code,
         city,
@@ -101,30 +93,19 @@ async def log_click_event(url_id: UUID, request: Request, conn: Connection):
 
 
 async def redirect_from_short_code(short_code: str, request: Request, conn: Connection):
-    url: dict = await urls_table.get_url(short_code, conn)
+    original_url: str = await urls_table.get_original_url(short_code, conn)
     
-    if url is None:
+    if original_url is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="URL não encontrada")
     
-    await log_click_event(url['id'], request, conn)
-    await urls_table.update_clicks(url['id'], conn)
+    await register_click_event(short_code, request, conn)
+    await urls_table.update_clicks(short_code, conn)
 
-    return RedirectResponse(url=url['original_url'])
+    return RedirectResponse(url=original_url)
 
 
 async def get_short_code_stats(short_code: str, conn: Connection):
-    url: dict | None = await urls_table.get_url(short_code, conn)
-
-    if not url:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="URL não encontrada")
-    
-    return URLStats(
-        id=url['id'],
-        original_url=url['original_url'],
-        short_code=url['short_code'],
-        clicks=url['clicks'],
-        created_at=url['created_at'],
-        qr_code_url=url['qr_code_url']
-    )
-
-
+    stats: dict | None = await urls_table.get_url_stats(short_code, conn)
+    if not stats:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="URL não encontrada")    
+    return JSONResponse(stats)

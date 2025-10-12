@@ -12,6 +12,16 @@ class UrlAnalytic(BaseModel):
     device_types: List[str]
 
 
+class UrlAnalyticPagination(BaseModel):
+
+    total: int
+    limit: int
+    offset: int
+    page: int
+    pages: int
+    results: List[UrlAnalytic]
+
+
 class PopularUrl(BaseModel):
 
     id: str

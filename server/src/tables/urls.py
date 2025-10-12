@@ -1,5 +1,8 @@
 from asyncpg import Connection
 from src.util import generate_short_code, create_qrcode
+from src.schemas.user import User
+from src.schemas.urls import URLResponse, URLCreate
+from src.security import hash_password
 from typing import Optional
 
 
@@ -8,146 +11,216 @@ async def count_urls(conn: Connection) -> int:
     return dict(r)['total']
 
 
-async def get_url(short_code: str, conn: Connection) -> dict | None:
+async def get_original_url(short_code: str, conn: Connection) -> str | None:
+    r = await conn.fetchrow(
+        "SELECT original_url FROM urls WHERE short_code = TRIM($1);", 
+        short_code
+    )
+    return dict(r)['short_code'] if r is not None else None
+
+
+async def get_url(short_code: str, base_url: str, conn: Connection) -> URLResponse | None:    
     r = await conn.fetchrow(
         """
-            SELECT
-                id::text,
-                original_url,
-                short_code,
-                clicks,
-                qr_code_url,
-                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at
-            FROM
-                urls
-            WHERE
-                short_code = $1;
+        SELECT
+            user_id::text,
+            original_url,
+            short_code,
+            clicks,
+            qr_code_url,
+            ($1 || '/' || short_code) AS short_url,
+            is_favorite,
+            TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
+            TO_CHAR(expires_at, 'DD-MM-YYYY HH24:MI:SS') as expires_at
+        FROM
+            urls
+        WHERE
+            short_code = TRIM($2);
         """,
-        short_code.strip()
+        base_url,
+        short_code
+    )
+
+    return URLResponse(**dict(r)) if r is not None else None
+
+
+async def get_url_stats(short_code: str, conn: Connection) -> dict | None:
+    r = await conn.fetchrow(
+        "SELECT * FROM vw_url_stats WHERE short_code = $1;", 
+        short_code
     )
     return dict(r) if r is not None else None
 
 
-async def get_url_pages(base_url: str, limit: int, offset: int, conn: Connection) -> dict | None:
+async def get_url_pages(base_url: str, limit: int, offset: int, conn: Connection) -> tuple[int, list[dict]]:
+    r = await conn.fetchrow("SELECT COUNT(*) AS total FROM urls WHERE is_private = FALSE;")
+    total = dict(r)['total']
+
     r = await conn.fetch(
         """
             SELECT
-                id::text,
+                user_id::text,
                 original_url,
                 short_code,
                 clicks,
                 qr_code_url,
-                ($3 || '/' || short_code) AS short_url,
-                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at
+                ($1 || '/' || short_code) AS short_url,
+                is_favorite,
+                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
+                TO_CHAR(expires_at, 'DD-MM-YYYY HH24:MI:SS') as expires_at
             FROM
                 urls
             LIMIT 
-                $1
+                $2
             OFFSET 
-                $2;
+                $3;
         """,
+        base_url,
         limit,
-        offset,
-        base_url
-    )
-    return [dict(i) for i in r]
+        offset
+    )    
+    return total, [dict(i) for i in r]
 
 
-async def get_url_from_original_url(original_url: str, conn: Connection) -> dict | None:
+async def get_anonymous_url(original_url: str, base_url: str, conn: Connection):
     r = await conn.fetchrow(
         """
-            SELECT 
-                id::text, 
-                original_url, 
-                short_code, 
+            SELECT
+                user_id::text,
+                original_url,
+                short_code,
                 clicks,
-                qr_code_url
-            FROM 
-                urls 
-            WHERE 
-                original_url = LOWER(TRIM($1));
+                qr_code_url,
+                ($1 || '/' || short_code) AS short_url,
+                is_favorite,
+                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
+                TO_CHAR(expires_at, 'DD-MM-YYYY HH24:MI:SS') as expires_at
+            from
+                urls
+            WHERE
+                user_id IS NULL AND
+                original_url = TRIM($2);
         """,
+        base_url,
         original_url
     )
-    return dict(r) if r is not None else None
+    return URLResponse(**dict(r)) if r is not None else None
 
 
-async def get_original_url_from_short_code(short_code: str, conn: Connection) -> str | None:
+async def get_user_url(original_url: str, base_url: str, user_id: str, conn: Connection):
     r = await conn.fetchrow(
         """
-            SELECT                
-                original_url
-            FROM 
-                urls 
-            WHERE 
-                short_code = $1;
-            """,
-        short_code.strip()
+            SELECT
+                user_id::text,
+                original_url,
+                short_code,
+                clicks,
+                qr_code_url,
+                ($1 || '/' || short_code) AS short_url,
+                is_favorite,
+                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
+                TO_CHAR(expires_at, 'DD-MM-YYYY HH24:MI:SS') as expires_at
+            from
+                urls
+            WHERE
+                user_id = $2 AND
+                original_url = TRIM($3);
+        """,
+        base_url,
+        user_id,
+        original_url
     )
-    return dict(r)['original_url'] if r is not None else None
+    return URLResponse(**dict(r)) if r is not None else None
 
 
-async def create_url(original_url: str, conn: Connection) -> dict | None:
-    qrcode_url = await create_qrcode(original_url)
+async def set_url_qrcode(short_code: str, qrcode_url: str, conn: Connection):
+    await conn.execute(
+        """
+            UPDATE
+                urls
+            SET
+                qrcode_url = $1
+            WHERE
+                short_code = TRIM($2);
+        """,
+        qrcode_url,
+        short_code
+    )
+
+
+async def create_anonymous_url(url: URLCreate, base_url: str, conn: Connection):
     while True:
         try:
             r = await conn.fetchrow(
                 """
                     INSERT INTO urls (
-                        original_url,
                         short_code,
-                        qr_code_url
+                        original_url                        
                     )
                     VALUES
-                        (LOWER(TRIM($1)), $2, $3)
+                        (LOWER(TRIM($1)), $2)
                     RETURNING
-                        id::text,
+                        user_id::text,
                         original_url,
                         short_code,
                         clicks,
-                        qr_code_url;
+                        qrcode_url,
+                        is_favorite,
+                        ($3 || '/' || short_code) AS short_url,
+                        is_favorite,
+                        TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
+                        TO_CHAR(expires_at, 'DD-MM-YYYY HH24:MI:SS') as expires_at;
                 """,
-                original_url,
+                str(url.url),
                 generate_short_code(),
-                qrcode_url
+                base_url
             )
-            return dict(r) if r is not None else None
+            return URLResponse(**dict(r)) if r is not None else None
         except Exception:
             pass
-    
 
 
-
-async def create_user_url(user_id: str, url_id: str, conn: Connection):
-    await conn.execute(
-        """
-            INSERT INTO user_urls (
-                user_id,
-                url_id
+async def create_user_url(url: URLCreate, user: User, base_url: str, conn: Connection):
+    while True:
+        try:
+            r = await conn.fetchrow(
+                """
+                    INSERT INTO urls (
+                        short_code,
+                        user_id,
+                        p_hash
+                        original_url,
+                        expires_at,
+                        is_favorite
+                    )
+                    VALUES
+                        (LOWER(TRIM($1)), $2, $3, $4, $5, $6)
+                    RETURNING
+                        short_code,
+                        user_id::text,
+                        original_url,
+                        clicks,
+                        qrcode_url,
+                        is_favorite,
+                        ($7 || '/' || short_code) AS short_url,
+                        TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
+                        TO_CHAR(expires_at, 'DD-MM-YYYY HH24:MI:SS') as expires_at;
+                """,
+                generate_short_code(),
+                user.id,
+                hash_password(url.password),
+                str(url.url),
+                url.expires_at,
+                url.is_favorite,
+                base_url
             )
-            VALUES
-                ($1, $2)
-            ON CONFLICT
-                (user_id, url_id)
-            DO NOTHING;
-        """,
-        user_id,
-        url_id
-    )
+            return URLResponse(**dict(r)) if r is not None else None
+        except Exception:
+            pass
 
 
-async def update_clicks(url_id: str, conn: Connection):
-    await conn.execute(
-        """
-            UPDATE 
-                urls
-            SET
-                clicks = clicks + 1
-            WHERE
-                id = $1;
-        """,
-        url_id
-    )
+async def update_clicks(short_code: str, conn: Connection):
+    await conn.execute("SELECT increment_url_clicks($1);", short_code)
 
 
 async def get_user_urls(user_id: str, limit: int, offset: int, base_url: str, conn: Connection) -> tuple[int, list[dict]]:
@@ -157,30 +230,33 @@ async def get_user_urls(user_id: str, limit: int, offset: int, base_url: str, co
     r = await conn.fetch(
         """
             SELECT
-                urls.id::text,
-                urls.original_url,
-                urls.short_code,
-                urls.clicks,
-                qr_code_url,
-                ($4 || '/' || urls.short_code) AS short_url
+                short_code,
+                user_id::text,
+                original_url,
+                clicks,
+                qrcode_url,
+                is_favorite,
+                ($1 || '/' || short_code) AS short_url,
+                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
+                TO_CHAR(expires_at, 'DD-MM-YYYY HH24:MI:SS') as expires_at;
             FROM
-                user_urls
+                urls
             JOIN
-                urls ON urls.id = user_urls.url_id
+                users ON urls.user_id = users.id
             WHERE
-                user_urls.user_id = $1
+                users.id = $2
             ORDER BY
-                user_urls.is_favorite DESC, 
+                urls.is_favorite DESC, 
                 urls.created_at DESC
             LIMIT
-                $2
+                $3
             OFFSET
-                $3;
+                $4;
         """,
+        base_url,
         user_id,
         limit,
-        offset,
-        base_url
+        offset        
     )
 
     results = [dict(row) for row in r]
@@ -188,7 +264,7 @@ async def get_user_urls(user_id: str, limit: int, offset: int, base_url: str, co
 
 
 async def create_url_analytic(
-    url_id: str,
+    short_code: str,
     ip_address: str,
     country_code: Optional[str],
     city: Optional[str],
@@ -202,7 +278,7 @@ async def create_url_analytic(
     await conn.execute(
         """
             INSERT INTO url_analytics (
-                url_id,
+                short_code,
                 ip_address,
                 country_code,
                 city,
@@ -215,7 +291,7 @@ async def create_url_analytic(
             VALUES
                 ($1, $2, $3, $4, $5, $6, $7, $8, $9);
         """,
-        url_id,
+        short_code,
         ip_address,
         country_code,
         city,

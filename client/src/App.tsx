@@ -1,4 +1,3 @@
-// src/App.js
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
@@ -9,42 +8,27 @@ import DashboardPage from './pages/DashboardPage';
 import StatsPage from './pages/StatsPage';
 import { useAuth } from './context/AuthContext';
 import { Toaster } from 'react-hot-toast';
+import Footer from './components/Footer'; 
 import './App.css';
 
-// Componente para proteger rotas
-const PrivateRoute = ({ children }) => {
+
+const PrivateRoute = ({ children }: {children: any}) => {
   const { user } = useAuth();
   return user ? children : <Navigate to="/login" />;
 };
 
 function App() {
-  return (
-    <>
+  return (    
+    <div className="app-container"> 
       <Toaster
-        position="top-center" // Posição do toast
-        reverseOrder={false}  // Ordem das notificações
+        position="top-center"
+        reverseOrder={false}
         toastOptions={{
-          // Estilos padrão para todos os toasts
           className: '',
-          duration: 3000, // Duração de 3 segundos
-          style: {
-            background: '#363636',
-            color: '#fff',
-          },          
-          success: {
-            duration: 2000,
-            theme: {
-              primary: 'green',
-              secondary: 'black',
-            },
-          },
-          error: {
-            duration: 3000,
-            theme: {
-              primary: 'red',
-              secondary: 'black',
-            },
-          },
+          duration: 3000,
+          style: { background: '#363636', color: '#fff' },
+          success: { duration: 2000 },
+          error: { duration: 3000 },
         }}
       />
       <Navbar />
@@ -55,16 +39,14 @@ function App() {
           <Route path="/signup" element={<SignupPage />} />
           <Route 
             path="/dashboard"
-            element={
-              <PrivateRoute>
-                <DashboardPage />
-              </PrivateRoute>
-            } 
+            element={<PrivateRoute><DashboardPage /></PrivateRoute>} 
           />
           <Route path="/stats" element={<StatsPage />} />
         </Routes>
       </main>
-    </>
+            
+      <Footer />
+    </div>
   );
 }
 

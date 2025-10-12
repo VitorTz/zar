@@ -47,7 +47,8 @@ def create_refresh_token() -> tuple[str, datetime]:
     return token, expires
 
 
-def hash_password(password: str) -> bytes:
+def hash_password(password: str) -> bytes | None:
+    if not password: return None
     return pwd_context.hash(password.strip()).encode()
 
 

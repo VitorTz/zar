@@ -3,12 +3,12 @@ import api from '../services/api';
 import toast from 'react-hot-toast';
 
 
-const URLShortenerForm = ({ onShorten }) => {
+const URLShortenerForm = ({ onShorten }: {onShorten: (data: any) => any}) => {
   const [url, setUrl] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -34,7 +34,7 @@ const URLShortenerForm = ({ onShorten }) => {
           placeholder="Cole sua URL aqui"
           required
         />
-        <button type="submit" disabled={loading}>
+        <button className='button' type="submit" disabled={loading}>
           {loading ? 'Encurtando...' : 'Encurtar'}
         </button>
       </form>

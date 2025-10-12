@@ -1,6 +1,6 @@
 
 
-export async function threadPool(args, func, limit = 4) {
+export async function threadPool(args: any[], func: (data: any) => any, limit = 4) {
   const pool = [];
   let i = 0;
 

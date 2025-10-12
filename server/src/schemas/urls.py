@@ -1,36 +1,43 @@
 from pydantic import BaseModel, HttpUrl
+from typing import List, Optional
 from datetime import datetime
-from typing import List
 
 
 class URLCreate(BaseModel):
 
     url: HttpUrl
+    password: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    is_favorite: Optional[bool] = False
+
+
+class UrlShortCode(BaseModel):
+
+    short_code: str
 
 
 class URLDelete(BaseModel):
 
-    url_id: str
+    short_code: str
+
+
+class CreateFavoriteURL(BaseModel):
+
+    short_code: str
+    is_favorite: bool
 
 
 class URLResponse(BaseModel):
-
-    id: str
+    
+    user_id: Optional[str] = None
     original_url: str
     short_url: str
     short_code: str
     clicks: int
-    qr_code_url: str
-
-
-class URLStats(BaseModel):
-
-    id: str
-    original_url: str
-    short_code: str
-    clicks: int
-    created_at: str
-    qr_code_url: str
+    qr_code_url: str    
+    is_favorite: bool = False
+    created_at: Optional[str] = None
+    expires_at: Optional[str] = None
 
 
 class UrlPagination(BaseModel):
@@ -41,3 +48,25 @@ class UrlPagination(BaseModel):
     page: int
     pages: int
     results: List[URLResponse]
+
+
+class UrlPopular(BaseModel):
+
+    short_code: str
+    original_url: str
+    title: Optional[str]
+    clicks: int
+    created_at: str
+    last_clicked_at: str
+    unique_visitors: int
+    countries_reached: int
+
+
+class UrlPopularPagination(BaseModel):
+
+    total: int
+    limit: int
+    offset: int
+    page: int
+    pages: int
+    results: List[UrlPopular]

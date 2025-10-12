@@ -20,5 +20,3 @@ body {
   background-color: var(--background-color);
   color: var(--text-primary-color);
 }
-
-/* Importe este arquivo em src/index.js */

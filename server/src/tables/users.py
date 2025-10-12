@@ -1,4 +1,5 @@
 from src.schemas.user import User, UserLoginData
+from src.schemas.urls import URLResponse
 from asyncpg import Connection
 from uuid import UUID
 from datetime import datetime
@@ -10,8 +11,11 @@ async def get_user(user_id: str | UUID, conn: Connection) -> User | None:
             SELECT
                 id::text,
                 email,
+                is_active,
+                is_verified,
                 TO_CHAR(last_login_at, 'DD-MM-YYYY HH24:MI:SS') as last_login_at,
-                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at
+                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
+                TO_CHAR(updated_at, 'DD-MM-YYYY HH24:MI:SS') as updated_at
             FROM
                 users
             WHERE
@@ -32,8 +36,11 @@ async def get_users(limit: int, offset: int, conn: Connection) -> tuple[int, lis
             SELECT
                 id::text,
                 email,
+                is_active,
+                is_verified,
                 TO_CHAR(last_login_at, 'DD-MM-YYYY HH24:MI:SS') as last_login_at,
-                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at
+                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
+                TO_CHAR(updated_at, 'DD-MM-YYYY HH24:MI:SS') as updated_at
             FROM
                 users
             LIMIT 
@@ -52,10 +59,13 @@ async def get_user_by_refresh_token(refresh_token: str, conn: Connection) -> Use
     r = await conn.fetchrow(
         """
             SELECT
-                u.id::text,
-                u.email,
-                TO_CHAR(u.last_login_at, 'DD-MM-YYYY HH24:MI:SS') as last_login_at,
-                TO_CHAR(u.created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at
+                id::text,
+                email,
+                is_active,
+                is_verified,
+                TO_CHAR(last_login_at, 'DD-MM-YYYY HH24:MI:SS') as last_login_at,
+                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
+                TO_CHAR(updated_at, 'DD-MM-YYYY HH24:MI:SS') as updated_at
             FROM
                 users u
             JOIN
@@ -75,7 +85,9 @@ async def update_user_session_token(user_id: str, refresh_token: str, expires_at
                 user_session_tokens
             SET
                 expires_at = $1,
-                revoked = FALSE
+                revoked = FALSE,
+                revoked_at = NULL,
+                last_used_at = NOW()
             WHERE
                 user_id = $2 AND
                 refresh_token = $3;
@@ -122,8 +134,11 @@ async def create_user(email: str, p_hash: bytes, conn: Connection) -> User:
             RETURNING
                 id::text,
                 email,
+                is_active,
+                is_verified,
                 TO_CHAR(last_login_at, 'DD-MM-YYYY HH24:MI:SS') as last_login_at,
-                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at;
+                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
+                TO_CHAR(updated_at, 'DD-MM-YYYY HH24:MI:SS') as updated_at;
         """,
         email,
         p_hash
@@ -144,6 +159,26 @@ async def update_user_login_attempts(
     locked_until: datetime, 
     conn: Connection
 ) -> None:
+    if failed_login_attempts == 0:
+        await conn.execute(
+            """
+                UPDATE 
+                    user_login_attempts
+                SET
+                    attempts = $1,
+                    last_failed_login = $2,
+                    locked_until = $3,
+                    last_successful_login = NOW()
+                WHERE
+                    user_id = $4;
+            """,
+            failed_login_attempts, 
+            last_failed_login, 
+            locked_until, 
+            user_id
+        )
+        return
+      
     await conn.execute(
         """
             UPDATE 
@@ -151,7 +186,7 @@ async def update_user_login_attempts(
             SET
                 attempts = $1,
                 last_failed_login = $2,
-                locked_until = $3
+                locked_until = $3                
             WHERE
                 user_id = $4;
         """,
@@ -188,7 +223,8 @@ async def create_user_session_token(
             DO UPDATE SET
                 refresh_token = EXCLUDED.refresh_token,
                 expires_at = EXCLUDED.expires_at,
-                device_name = EXCLUDED.device_name;
+                device_name = EXCLUDED.device_name,
+                last_used_at = NOW();
         """,
         user_id, 
         refresh_token, 
@@ -206,12 +242,15 @@ async def get_user_sessions(user_id: str | UUID, limit: int, offset: int, conn: 
     await conn.fetch(
         """
             SELECT
+                user_id::text
                 TO_CHAR(issued_at, 'DD-MM-YYYY HH24:MI:SS') as issued_at,
                 TO_CHAR(expires_at, 'DD-MM-YYYY HH24:MI:SS') as expires_at,
                 revoked,
+                TO_CHAR(revoked_at, 'DD-MM-YYYY HH24:MI:SS') as revoked_at,
                 device_name,
                 device_ip::text,
-                user_agent
+                user_agent,
+                TO_CHAR(last_used_at, 'DD-MM-YYYY HH24:MI:SS') as last_used_at
             FROM
                 user_session_tokens
             WHERE
@@ -292,19 +331,36 @@ async def delete_user_url(user_id: str, url_id: str, conn: Connection):
 
 
 
-async def assign_url_to_user(user_id: str, url_id: str, conn: Connection):
+async def assign_url_to_user(url: URLResponse, user_id: str, conn: Connection):
+    if url.user_id is None:
+        await conn.execute(
+            """
+                UPDATE 
+                    urls
+                SET
+                    user_id = $1,
+                    is_favorite = FALSE,
+                    expires_at = NULL
+                WHERE
+                    short_code = $2;
+            """,
+            user_id,
+            url.short_code
+        )
+
+
+async def set_user_favorite_url(user_id: str, short_code: str, state: bool, conn: Connection):
     await conn.execute(
         """
-            INSERT INTO user_urls (
-                user_id,
-                url_id
-            )
-            VALUES
-                ($1, $2)
-            ON CONFLICT
-                (user_id, url_id)
-            DO NOTHING;
+            UPDATE 
+                user_urls
+            SET
+                is_favorite = $1
+            WHERE
+                user_id = $2 AND
+                short_code = $3;
         """,
+        state,
         user_id,
-        url_id
+        short_code
     )

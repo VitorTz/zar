@@ -138,8 +138,8 @@ async def http_middleware(request: Request, call_next):
     
     monitor = get_monitor()
     start_time = time.perf_counter()
-
-    # Check body size
+    
+    # Body size check
     content_length = request.headers.get("content-length")
     if content_length:
         if int(content_length) > Constants.MAX_BODY_SIZE:
@@ -157,20 +157,27 @@ async def http_middleware(request: Request, call_next):
                     detail=f"Request entity too large. Max allowed: {Constants.MAX_BODY_SIZE} bytes"
                 )
         request._body = body
-
+    
     # Rate limit check
     identifier = util.get_client_identifier(request)
     key = f"rate_limit:{identifier}"
-
+    
     pipe = Globals.redis_client.pipeline()
     pipe.incr(key)
     pipe.expire(key, Constants.WINDOW)
     results = await pipe.execute()
-
+    
     current = results[0]
     ttl = await Globals.redis_client.ttl(key)
-
+    
     if current > Constants.MAX_REQUESTS:
+        await log_service.log_rate_limit_violation(
+            request=request,
+            identifier=identifier,
+            attempts=current,
+            ttl=ttl
+        )
+        
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={
@@ -187,22 +194,22 @@ async def http_middleware(request: Request, call_next):
                 "X-RateLimit-Reset": str(ttl)
             }
         )
-
-    # Continue request
+    
+    # Headers
     response: Response = await call_next(request)
-
-    # Add rate limit headers
+        
     remaining = max(Constants.MAX_REQUESTS - current, 0)
     response.headers["X-RateLimit-Limit"] = str(Constants.MAX_REQUESTS)
     response.headers["X-RateLimit-Remaining"] = str(remaining)
     response.headers["X-RateLimit-Reset"] = str(ttl)
-
-    # Existing security + monitoring
+        
     middleware.add_security_headers(request, response)
     response_time_ms = (time.perf_counter() - start_time) * 1000
     response.headers["X-Response-Time"] = f"{response_time_ms:.2f}ms"
+    
+    # System Monitor
     monitor.increment_request(response_time_ms)
-
+    
     return response
 
 

@@ -1,5 +1,9 @@
 from pathlib import Path
+from dotenv import load_dotenv
 import os
+
+load_dotenv()
+
 
 class Constants:
 
@@ -43,3 +47,7 @@ class Constants:
     MAX_FAILED_ATTEMPTS = 10
     LOCK_TIME_MINUTES = 16
     CACHE_EXPIRE_SECONDS = 60
+
+    SAFE_BROWSING_URL = f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={os.getenv('GOOGLE_SAFE_BROWSING_API_KEY')}"
+
+    SAFE_CACHE_TTL=21600 # 6 hours

@@ -2,17 +2,20 @@
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from src.db import get_db, db_count, db_version
-from asyncpg import Connection
 from src.schemas.user import UserPagination, UseDelete
+from src.schemas.urls import UrlPagination
+from src.schemas.admin import HealthReport
 from src.security import require_admin
 from src.services import admin as admin_service
 from src.services import urls as urls_service
+from datetime import datetime
+from asyncpg import Connection
 
 
 router = APIRouter(dependencies=[Depends(require_admin)])
 
 
-@router.get("/health")
+@router.get("/health", response_model=HealthReport)
 async def health_check(conn: Connection = Depends(get_db)):
     version: str = await db_version(conn)
     total_urls: int = await db_count("urls", conn)
@@ -21,7 +24,8 @@ async def health_check(conn: Connection = Depends(get_db)):
             "status": "healthy",
             "database": "connected",
             "postgres_version": version,
-            "total_urls": total_urls
+            "total_urls": total_urls,
+            "now": (datetime.now())
         }
     )    
 
@@ -45,7 +49,7 @@ async def delete_all_users(conn: Connection = Depends(get_db)):
     return await admin_service.delete_all_users(conn)
 
 
-@router.get("/urls")
+@router.get("/urls", response_model=UrlPagination)
 async def get_urls(
     request: Request, 
     limit: int = Query(default=64, ge=0, le=64), 

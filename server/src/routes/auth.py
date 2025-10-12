@@ -1,9 +1,9 @@
+from src.schemas.user import User, UserLogin, UserSessionPagination, UserCreate
 from fastapi import APIRouter, Depends, Request, Query, Cookie
 from fastapi.responses import JSONResponse
-from src.db import get_db
-from src.schemas.user import User, UserLogin, UserSessionPagination, UserCreate
 from src.security import get_user_from_token
 from src.services import auth as auth_service
+from src.db import get_db
 from asyncpg import Connection
 
 
@@ -52,6 +52,6 @@ async def logout(refresh_token: str | None = Cookie(default=None), conn: Connect
     return await auth_service.logout(refresh_token, conn)
 
 
-@router.post("/logoutall")
+@router.post("/logout/all")
 async def logout(user: User = Depends(get_user_from_token), conn: Connection = Depends(get_db)):
     return await auth_service.logout_all(user, conn)

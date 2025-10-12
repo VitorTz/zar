@@ -1,6 +1,6 @@
 from src.security import get_user_from_token
 from src.schemas.user import User
-from src.schemas.urls import UrlPagination, URLDelete
+from src.schemas.urls import UrlPagination, URLDelete, CreateFavoriteURL, URLResponse, UrlShortCode
 from fastapi import APIRouter, Depends, Query, Request
 from asyncpg import Connection
 from src.db import get_db
@@ -21,13 +21,22 @@ async def get_user_urls(
     return await user_service.get_user_urls(user.id, request, limit, offset, conn)
 
 
-@router.post("/url")
-async def assign_url_to_user(
-    url_id: str = Query(), 
+@router.put("/url/favorite", response_model=URLResponse)
+async def set_favorite_url(
+    url: CreateFavoriteURL,
     user: User | None = Depends(get_user_from_token),
     conn: Connection = Depends(get_db)
 ):
-    return await user_service.assign_url_to_user(user.id, url_id, conn)
+    return await user_service.set_user_favorite_url(user, url, conn)
+
+
+@router.post("/url")
+async def assign_url_to_user(
+    url: UrlShortCode,
+    user: User | None = Depends(get_user_from_token),
+    conn: Connection = Depends(get_db)
+):
+    return await user_service.assign_url_to_user(user, url, conn)
 
 
 @router.delete("/url")

@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import URLList from '../components/UrlList';
 import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
+import { Url } from '../model/Url';
 
 const DashboardPage = () => {
   
-  const [userUrls, setUserUrls] = useState([]);
+  const { user } = useAuth()
+  const [userUrls, setUserUrls] = useState<Url[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,13 +26,15 @@ const DashboardPage = () => {
     fetchUserUrls();
   }, []);
 
-  const handleDeleteUrl = async (url) => {
+  const handleDeleteUrl = async (url: Url) => {
     try {
-      await api.delete('/user/url', { data: { url_id: url.id } });
       const updatedUrls = userUrls.filter(i => i.id != url.id)
       setUserUrls(updatedUrls)
       localStorage.setItem('localUrls', JSON.stringify(updatedUrls));
       toast.success('URL deletada!');
+      if (user) {      
+        api.delete('/user/url', { data: { url_id: url.id } });      
+      }
     } catch (error) {
       console.error("Falha ao deletar URLs do usuário", error);
     } finally {
@@ -37,13 +42,33 @@ const DashboardPage = () => {
     }
   }
 
+  const handleFavoriteToggle = async (clickedUrl: Url) => {    
+    const updatedUrls = userUrls.map(url =>
+      url.id === clickedUrl.id ? { ...url, is_favorite: !url.is_favorite } : url
+    );
+    setUserUrls(updatedUrls);
+    if (user) {
+      try {
+        await api.put(`/url/favorite`, {data: { url_id: clickedUrl.id, state: !clickedUrl.is_favorite }});
+      } catch (error) {
+        toast.error("Não foi possível favoritar a url.");
+        setUserUrls(userUrls);
+        console.error("Falha ao favoritar:", error);
+      }
+    }
+  };
+
   if (loading) {
     return <div className="container"><p>Carregando seu histórico...</p></div>;
   }
 
   return (
     <div className="container">
-      <URLList showNoUrlsText={true} urls={userUrls} handleDelete={handleDeleteUrl} />
+      <URLList 
+        showNoUrlsText={true} 
+        urls={userUrls} 
+        handleFavorite={handleFavoriteToggle}
+        handleDelete={handleDeleteUrl} />
     </div>
   );
 };
