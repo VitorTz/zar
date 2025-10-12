@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import api from '../services/api';
+import toast from 'react-hot-toast';
+
 
 const URLShortenerForm = ({ onShorten }) => {
   const [url, setUrl] = useState('');
@@ -15,7 +17,7 @@ const URLShortenerForm = ({ onShorten }) => {
       onShorten(response.data);
       setUrl('');
     } catch (err) {
-      setError('Falha ao encurtar a URL. Verifique se é uma URL válida.');
+      toast.error('Falha ao encurtar a URL. Verifique se é uma URL válida.')
       console.error(err);
     } finally {
       setLoading(false);

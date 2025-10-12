@@ -21,6 +21,15 @@ async def get_user_urls(
     return await user_service.get_user_urls(user.id, request, limit, offset, conn)
 
 
+@router.post("/url")
+async def assign_url_to_user(
+    url_id: str = Query(), 
+    user: User | None = Depends(get_user_from_token),
+    conn: Connection = Depends(get_db)
+):
+    return await user_service.assign_url_to_user(user.id, url_id, conn)
+
+
 @router.delete("/url")
 async def delele_user_url(
     url: URLDelete, 

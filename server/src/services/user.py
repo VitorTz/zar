@@ -25,3 +25,8 @@ async def get_user_urls(user_id: str, request: Request, limit: int, offset: int,
         "results": results
     }
     return response
+
+
+async def assign_url_to_user(user_id: str, url_id: str, conn: Connection):
+    await users_table.assign_url_to_user(user_id, url_id, conn)
+    return Response()

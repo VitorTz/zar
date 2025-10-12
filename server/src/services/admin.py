@@ -1,4 +1,5 @@
 from src.tables import users as users_table
+from src.tables import urls as urls_table
 from fastapi.responses import JSONResponse, Response
 from fastapi import status
 from asyncpg import Connection
@@ -24,4 +25,9 @@ async def delete_user(user_id: str, conn: Connection):
 
 async def delete_all_users(conn: Connection):
     await users_table.delete_all_users(conn)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+async def delete_all_urls(conn: Connection):
+    await urls_table.delete_all_urls(conn)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

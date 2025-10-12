@@ -38,19 +38,13 @@ const Navbar = () => {
     <>
       {user ? (
         <div className="navbar-user-section">
+          <button className={`nav-button ${isActive(homePath) ? 'active' : ''}`} onClick={() => handleNavigate(homePath)}> Home </button>
           <button 
             className={`nav-button ${isActive(dashboardPath) ? 'active' : ''}`} 
             onClick={() => handleNavigate(dashboardPath)}
           >
             Dashboard
-          </button>
-
-          <button 
-            className={`nav-button ${isActive(homePath) ? 'active' : ''}`} 
-            onClick={() => handleNavigate(homePath)}
-          >
-            Home
-          </button>
+          </button>          
           
           <button 
             className={`nav-button ${isActive(statsPath) ? 'active' : ''}`} 
@@ -73,6 +67,7 @@ const Navbar = () => {
         </div>
       ) : (
         <>
+          <button className={`nav-button ${isActive(homePath) ? 'active' : ''}`} onClick={() => handleNavigate(homePath)}> Home </button>
           <button className={`nav-button ${isActive(statsPath) ? 'active' : ''}`} onClick={() => handleNavigate(statsPath)}>Stats</button>
           <button className={`nav-button ${isActive(loginPath) ? 'active' : ''}`} onClick={() => handleNavigate(loginPath)}>Login</button>
           <button className={`nav-button ${isActive(signupPath) ? 'active' : ''}`} onClick={() => handleNavigate(signupPath)}>Signup</button>

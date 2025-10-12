@@ -25,8 +25,7 @@ const DashboardPage = () => {
 
   const handleDeleteUrl = async (url) => {
     try {
-      console.log(url)
-      const response = await api.delete('/user/url', { data: { url_id: url.id } });
+      await api.delete('/user/url', { data: { url_id: url.id } });
       const updatedUrls = userUrls.filter(i => i.id != url.id)
       setUserUrls(updatedUrls)
       localStorage.setItem('localUrls', JSON.stringify(updatedUrls));

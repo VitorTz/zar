@@ -29,7 +29,7 @@ async def get_urls(request: Request, limit: int, offset: int, conn: Connection):
 async def shorten(original_url: str, request: Request, conn: Connection, user: User | None = None):
     base_url = util.extract_base_url(request)
     r: dict | None = await urls_table.get_url_from_original_url(original_url, conn)
-
+    
     if r:
         if user is not None:
             await urls_table.create_user_url(user.id, r['id'], conn)
@@ -64,7 +64,7 @@ async def log_click_event(url_id: UUID, request: Request, conn: Connection):
     
     ip_address = request.client.host
     
-    # Geolocalização do IP
+    # GEO
     country_code = None
     city = None
     if Globals.geoip_reader and ip_address:

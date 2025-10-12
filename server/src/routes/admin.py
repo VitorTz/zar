@@ -1,11 +1,12 @@
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from src.db import get_db, db_count, db_version
 from asyncpg import Connection
 from src.schemas.user import UserPagination, UseDelete
 from src.security import require_admin
 from src.services import admin as admin_service
+from src.services import urls as urls_service
 
 
 router = APIRouter(dependencies=[Depends(require_admin)])
@@ -42,3 +43,18 @@ async def delete_user(user: UseDelete, conn: Connection = Depends(get_db)):
 @router.delete("/users/all")
 async def delete_all_users(conn: Connection = Depends(get_db)):
     return await admin_service.delete_all_users(conn)
+
+
+@router.get("/urls")
+async def get_urls(
+    request: Request, 
+    limit: int = Query(default=64, ge=0, le=64), 
+    offset: int = Query(default=0, ge=0),
+    conn: Connection = Depends(get_db)
+):
+    return await urls_service.get_urls(request, limit, offset, conn)
+
+
+@router.delete("/urls/all")
+async def delete_all_urls(conn: Connection = Depends(get_db)):
+    return await admin_service.delete_all_urls(conn)

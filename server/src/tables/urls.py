@@ -65,8 +65,8 @@ async def get_url_from_original_url(original_url: str, conn: Connection) -> dict
             FROM 
                 urls 
             WHERE 
-                original_url = $1;
-            """,
+                original_url = LOWER(TRIM($1));
+        """,
         original_url
     )
     return dict(r) if r is not None else None
@@ -170,6 +170,7 @@ async def get_user_urls(user_id: str, limit: int, offset: int, base_url: str, co
             WHERE
                 user_urls.user_id = $1
             ORDER BY
+                user_urls.is_favorite DESC, 
                 urls.created_at DESC
             LIMIT
                 $2
@@ -224,3 +225,7 @@ async def create_url_analytic(
         browser,
         os
     )
+
+
+async def delete_all_urls(conn: Connection):
+    await conn.execute("DELETE FROM urls;")

@@ -216,14 +216,15 @@ $$;
 ------------------------------------------------
 ----                [VIEW]                  ----
 ------------------------------------------------
+
 -- View: URLs mais populares
 CREATE OR REPLACE VIEW v_popular_urls AS
 SELECT 
-    u.id,
+    u.id::text,
     u.short_code,
     u.original_url,
     u.clicks,
-    u.created_at,
+    TO_CHAR(u.created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
     COUNT(DISTINCT ua.id) as unique_clicks
 FROM 
     urls u
@@ -238,15 +239,16 @@ ORDER BY
 
 
 -- View: Estatísticas por usuário
+
 CREATE OR REPLACE VIEW v_user_stats AS
 SELECT 
-    u.id,
+    u.id::text,
     u.email,
-    u.created_at as member_since,
+    TO_CHAR(u.created_at, 'DD-MM-YYYY HH24:MI:SS') as member_since,
     COUNT(DISTINCT uu.url_id) as total_urls,
     COUNT(DISTINCT CASE WHEN uu.is_favorite THEN uu.url_id END) as favorite_urls,
     COALESCE(SUM(urls.clicks), 0) as total_clicks,
-    MAX(urls.created_at) as last_url_created
+    TO_CHAR(MAX(urls.created_at), 'DD-MM-YYYY HH24:MI:SS') as last_url_created
 FROM 
     users u
 LEFT JOIN 
@@ -260,15 +262,19 @@ GROUP BY
 -- View: Analytics agregados por dia
 CREATE OR REPLACE VIEW v_daily_analytics AS
 SELECT 
-    url_id,
-    DATE(clicked_at) as date,
+    url_id::text,
+    TO_CHAR(DATE(clicked_at), 'DD-MM-YYYY') as date,
     COUNT(*) as clicks,
     COUNT(DISTINCT ip_address) as unique_visitors,
     COUNT(DISTINCT country_code) as countries,
     array_agg(DISTINCT device_type) FILTER (WHERE device_type IS NOT NULL) as device_types
-FROM url_analytics
-GROUP BY url_id, DATE(clicked_at)
-ORDER BY date DESC;
+FROM 
+    url_analytics
+GROUP BY 
+    url_id, 
+    DATE(clicked_at)
+ORDER BY 
+    date DESC;
 
 
 -- View: Sessões ativas
@@ -281,16 +287,21 @@ SELECT
     ust.issued_at,
     ust.expires_at,
     EXTRACT(EPOCH FROM (ust.expires_at - NOW())) / 3600 as hours_until_expiry
-FROM user_session_tokens ust
-JOIN users u ON ust.user_id = u.id
-WHERE ust.expires_at > NOW() 
-  AND ust.revoked = FALSE
-ORDER BY ust.issued_at DESC;
+FROM 
+    user_session_tokens ust
+JOIN 
+    users u ON ust.user_id = u.id
+WHERE 
+    ust.expires_at > NOW() AND 
+    ust.revoked = FALSE
+ORDER BY 
+    ust.issued_at DESC;
 
 
 ------------------------------------------------
 ----          [MATERIALIZED VIEW]           ----
 ------------------------------------------------
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_dashboard_stats AS
 SELECT 
     (SELECT COUNT(*) FROM urls) as total_urls,
@@ -298,7 +309,7 @@ SELECT
     (SELECT SUM(clicks) FROM urls) as total_clicks,
     (SELECT COUNT(*) FROM url_analytics WHERE clicked_at > NOW() - INTERVAL '24 hours') as clicks_last_24h,
     (SELECT COUNT(*) FROM urls WHERE created_at > NOW() - INTERVAL '7 days') as urls_created_last_week,
-    NOW() as last_updated;
+    TO_CHAR(NOW(), 'DD-MM-YYYY HH24:MI:SS') as last_updated;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_dashboard_stats ON mv_dashboard_stats(last_updated);
 

@@ -289,3 +289,22 @@ async def delete_user_url(user_id: str, url_id: str, conn: Connection):
         user_id,
         url_id
     )
+
+
+
+async def assign_url_to_user(user_id: str, url_id: str, conn: Connection):
+    await conn.execute(
+        """
+            INSERT INTO user_urls (
+                user_id,
+                url_id
+            )
+            VALUES
+                ($1, $2)
+            ON CONFLICT
+                (user_id, url_id)
+            DO NOTHING;
+        """,
+        user_id,
+        url_id
+    )

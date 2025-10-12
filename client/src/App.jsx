@@ -6,6 +6,7 @@ import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignUpPage';
 import DashboardPage from './pages/DashboardPage';
+import StatsPage from './pages/StatsPage';
 import { useAuth } from './context/AuthContext';
 import { Toaster } from 'react-hot-toast';
 import './App.css';
@@ -37,6 +38,13 @@ function App() {
               secondary: 'black',
             },
           },
+          error: {
+            duration: 3000,
+            theme: {
+              primary: 'red',
+              secondary: 'black',
+            },
+          },
         }}
       />
       <Navbar />
@@ -53,6 +61,7 @@ function App() {
               </PrivateRoute>
             } 
           />
+          <Route path="/stats" element={<StatsPage />} />
         </Routes>
       </main>
     </>

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import toast from 'react-hot-toast';
+
 
 const SignupPage = () => {
   const [email, setEmail] = useState('');
@@ -13,15 +15,15 @@ const SignupPage = () => {
     e.preventDefault();
     setError('');
     if (password.length < 6) {
-        setError('A senha deve ter pelo menos 6 caracteres.');
+        toast.error('A senha deve ter pelo menos 6 caracteres.')
         return;
     }
     try {
       await signup(email, password);
-      alert('Conta criada com sucesso! Por favor, faça o login.');
+      toast.success('Conta criada com sucesso! Por favor, faça o login.')
       navigate('/login');
     } catch (err) {
-      setError('Falha ao criar conta. O email pode já estar em uso.');
+      toast.error('Falha ao criar conta. O email pode já estar em uso.')
     }
   };
 

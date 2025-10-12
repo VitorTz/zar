@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import URLShortenerForm from '../components/URLShortenerForm';
 import URLList from '../components/UrlList';
 import toast from 'react-hot-toast';
+import api from '../services/api';
 
 
 const HomePage = () => {
@@ -13,8 +14,7 @@ const HomePage = () => {
   }, []);
 
   const handleShorten = (newUrl) => {
-    if (localUrls.map(i => i.id).includes(newUrl.id)) { return }
-    const updatedUrls = [newUrl, ...localUrls];
+    const updatedUrls = [newUrl, ...localUrls.filter(i => i.id != newUrl.id)];
     setLocalUrls(updatedUrls);
     localStorage.setItem('localUrls', JSON.stringify(updatedUrls));
   };
@@ -24,11 +24,9 @@ const HomePage = () => {
     setLocalUrls(updatedUrls)
     localStorage.setItem('localUrls', JSON.stringify(updatedUrls));
     toast.success('URL deletada!');
-
     try {
       await api.delete('/user/url', { data: { url_id: url.id } });      
     } catch (error) { }
-
   }
 
   return (

@@ -18,6 +18,7 @@ from src.routes import shortener
 from src.routes import admin
 from src.routes import auth
 from src.routes import user
+from src.routes import metrics
 import redis.asyncio as redis
 import time
 import contextlib
@@ -89,6 +90,7 @@ app.include_router(shortener.router, tags=["shorten"])
 app.include_router(admin.router, prefix="/admin", tags=["admin"])
 app.include_router(user.router, prefix="/user", tags=["user"])
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
 
 
 templates = Jinja2Templates(directory="templates")
