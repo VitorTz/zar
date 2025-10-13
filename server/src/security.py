@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta
 from fastapi.exceptions import HTTPException
 from fastapi.responses import Response
-from fastapi import Depends, Cookie, Request
+from fastapi import Depends, Cookie
 from passlib.context import CryptContext
 from src.constants import Constants
 from src.db import get_db
@@ -91,8 +91,7 @@ async def get_user_from_token(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
-    )
-    
+    )    
     if access_token is None: 
         raise credentials_exception
     
@@ -151,7 +150,7 @@ def set_access_cookie(response: Response, access_token: str, refresh_token: str)
         secure=secure_policy,
         samesite=samesite_policy,
         path="/",
-        max_age=Constants.REFRESH_TOKEN_EXPIRE_DAYS
+        max_age=Constants.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
     )
 
     response.set_cookie(

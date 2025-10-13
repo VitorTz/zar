@@ -36,16 +36,25 @@ const UrlStatsDisplay = ({ stats }: { stats: UrlStats }) => (
     </div>
     
     {stats.timeline && stats.timeline.length > 0 && (
-      <div className="timeline-chart">
+      <div className="timeline-chart-wrapper">
         <h4>Cliques por Dia</h4>
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={stats.timeline} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-            <XAxis dataKey="day" tickFormatter={(date) => new Date(date + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} />
-            <YAxis allowDecimals={false} />
-            <Tooltip />
-            <Bar dataKey="clicks" name="Cliques" fill="var(--primary-color)" />
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="timeline-chart">
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={stats.timeline} margin={{ top: 5, right: 20, left: 0, bottom: 25 }}>
+              <XAxis 
+                dataKey="day" 
+                tickFormatter={(date) => new Date(date + 'T00:00:00').toLocaleString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                angle={-45}
+                textAnchor="end"
+                height={50}
+                interval={0}
+              />
+              <YAxis allowDecimals={false} />
+              <Tooltip />
+              <Bar dataKey="clicks" name="Cliques" fill="var(--primary-color)" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     )}
 
@@ -69,27 +78,25 @@ const UrlListItem = ({ url, handleDelete, handleFavorite, openModal, handleCopy 
       return;
     }
 
-    setIsStatsOpen(true);
-    if (!statsData) {
-      setIsLoadingStats(true);
-      try {
-        const response = await api.get(
-          `/url/stats/${url.short_code}`, {
-             headers: {
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache',
-              'Expires': '0',
-            },
-          }
-        );
-        setStatsData(response.data);
-      } catch (error) {
-        toast.error("Não foi possível carregar as estatísticas.");
-        console.error("Erro ao buscar stats da URL:", error);
-        setIsStatsOpen(false);
-      } finally {
-        setIsLoadingStats(false);
-      }
+    setIsStatsOpen(true);    
+    setIsLoadingStats(true);
+    try {
+      const response = await api.get(
+        `/url/${url.short_code}/stats`, {
+            headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          },
+        }
+      );
+      setStatsData(response.data);
+    } catch (error) {
+      toast.error("Não foi possível carregar as estatísticas.");
+      console.error("Erro ao buscar stats da URL:", error);
+      setIsStatsOpen(false);
+    } finally {
+      setIsLoadingStats(false);
     }
   };
 

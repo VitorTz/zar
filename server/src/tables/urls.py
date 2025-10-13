@@ -14,6 +14,21 @@ async def count_urls(conn: Connection) -> int:
     total: int = await conn.fetchval("SELECT COUNT(*) AS total FROM urls")
     return total
 
+async def get_redirect_url(short_code: str, conn: Connection) -> dict | None:
+    r = await conn.fetchrow(
+        """
+            SELECT
+                original_url,
+                p_hash,
+                expires_at
+            FROM
+                urls
+            WHERE
+                short_code = TRIM($1)
+        """,
+        short_code
+    )
+    return dict(r) if r else None
 
 async def get_original_url(short_code: str, conn: Connection) -> str | None:
     r = await conn.fetchrow(
@@ -105,6 +120,7 @@ async def get_url_pages(base_url: str, limit: int, offset: int, conn: Connection
             SELECT
                 user_id::text,
                 original_url,
+                p_hash,
                 ($1 || '/' || short_code) AS short_url,
                 short_code,
                 clicks,
@@ -143,7 +159,8 @@ async def get_anonymous_url(original_url: str, base_url: str, conn: Connection) 
                 urls
             WHERE
                 user_id IS NULL AND 
-                original_url = TRIM($2)
+                original_url = TRIM($2) AND 
+                expires_at > NOW()
         """,
         base_url,
         original_url
@@ -199,7 +216,7 @@ async def create_anonymous_url(url: URLCreate, base_url: str, conn: Connection):
                 """
                     INSERT INTO urls (
                         short_code,
-                        original_url                        
+                        original_url
                     )
                     VALUES
                         ($1, LOWER(TRIM($2)))

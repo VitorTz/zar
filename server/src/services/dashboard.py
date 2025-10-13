@@ -8,6 +8,7 @@ from src.tables import dashboard
 from src.tables import users as users_table
 from decimal import Decimal
 from src import util
+import json
 
 
 async def get_urls_ordered_by_popularity(request: Request, limit: int, offset: int, conn: Connection):
@@ -39,17 +40,10 @@ async def get_daily_metrics(limit: int, offset: int, conn: Connection):
     return JSONResponse(response)
 
 
-async def get_dashboard_stats(conn: Connection) -> JSONResponse:
-    r = await conn.fetchrow(
-        """
-            SELECT 
-                *
-            FROM
-                mv_dashboard_stats
-            LIMIT 
-                1
-        """
-    )
+async def get_dashboard_stats(request: Request, conn: Connection) -> JSONResponse:
+    base_url: str = util.extract_base_url(request)
+    await conn.execute("SELECT * FROM refresh_dashboard_stats()")
+    r = await conn.fetchrow("SELECT * FROM mv_dashboard_stats LIMIT 1")
     if r is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -57,8 +51,10 @@ async def get_dashboard_stats(conn: Connection) -> JSONResponse:
         )
     
     stats_dict = dict(r)
-    
-    # Converter Decimal para float
+    stats_dict["top_urls"] = json.loads(stats_dict["top_urls"])
+    for url in stats_dict['top_urls']:
+        url['short_url'] = base_url + '/' + url['short_code']
+
     if isinstance(stats_dict.get('avg_clicks_per_url'), Decimal):
         stats_dict['avg_clicks_per_url'] = float(stats_dict['avg_clicks_per_url'])
     

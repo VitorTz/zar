@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './UrlList.css';
 import ImageGeneratorModal from './ImageGeneratorModal'; 
-import UrlListItem from './UrlListItem'; // Importe o novo componente
+import UrlListItem from './UrlListItem';
 import toast from 'react-hot-toast';
 import { Url } from '../model/Url';
 import { useUrlListState } from '../store/urlStore';

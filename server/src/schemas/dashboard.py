@@ -6,6 +6,7 @@ import json
 
 class TopURL(BaseModel):
     short_code: str
+    short_url: str
     title: Optional[str] = None
     clicks: int
     original_url: str

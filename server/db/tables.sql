@@ -544,7 +544,6 @@ GROUP BY u.short_code;
 ------------------------------------------------
 ----          [MATERIALIZED VIEWS]          ----
 ------------------------------------------------
-
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_dashboard_stats AS
 WITH 
 -- Estatísticas gerais de URLs
@@ -593,16 +592,23 @@ top_urls AS (
     SELECT JSONB_AGG(
         jsonb_build_object(
             'short_code', short_code,
-            'title', title,
-            'clicks', clicks,
-            'original_url', LEFT(original_url, 50) || CASE WHEN LENGTH(original_url) > 50 THEN '...' ELSE '' END
-        ) ORDER BY clicks DESC
-    ) as top_10_urls
+            'original_url', LEFT(original_url, 50) || CASE WHEN LENGTH(original_url) > 50 THEN '...' ELSE '' END,
+            'clicks', total_clicks            
+        ) ORDER BY total_clicks DESC
+    ) AS top_10_urls
     FROM (
-        SELECT short_code, title, clicks, original_url
-        FROM urls
-        WHERE is_active = TRUE
-        ORDER BY clicks DESC
+        SELECT 
+            original_url,
+            SUM(clicks) AS total_clicks,
+            (ARRAY_AGG(short_code ORDER BY clicks DESC))[1] AS short_code
+        FROM 
+            urls
+        WHERE 
+            is_active = TRUE
+        GROUP BY 
+            original_url
+        ORDER BY 
+            total_clicks DESC
         LIMIT 10
     ) t
 ),
@@ -771,12 +777,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_dashboard_stats_updated ON mv_dashboard
 CREATE OR REPLACE FUNCTION refresh_dashboard_stats()
 RETURNS TABLE(
     execution_time_ms NUMERIC,
-    last_updated TIMESTAMPTZ
+    refreshed_at TIMESTAMPTZ
 ) AS $$
 DECLARE
     start_time TIMESTAMPTZ;
     end_time TIMESTAMPTZ;
-    refreshed_at TIMESTAMPTZ;
+    last_refresh TIMESTAMPTZ;
 BEGIN
     start_time := clock_timestamp();
     
@@ -784,15 +790,18 @@ BEGIN
     
     end_time := clock_timestamp();
 
-    SELECT last_updated
-    INTO refreshed_at
-    FROM mv_dashboard_stats
+    SELECT 
+        m.last_updated
+    INTO 
+        last_refresh
+    FROM 
+        mv_dashboard_stats AS m
     LIMIT 1;
 
     RETURN QUERY
     SELECT 
         ROUND(EXTRACT(EPOCH FROM (end_time - start_time)) * 1000, 2) AS execution_time_ms,
-        refreshed_at AS last_updated;
+        last_refresh AS refreshed_at;
 END;
 $$ LANGUAGE plpgsql;
 

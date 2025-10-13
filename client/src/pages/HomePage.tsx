@@ -36,7 +36,7 @@ const HomePage = () => {
     setUrlList(urlList.favorite(url, is_favorite))
     if (user) {
       try {
-        await api.put(`/url/favorite`, {data: { short_code: url.short_code, is_favorite: !url.is_favorite }});
+        await api.put(`/user/url/favorite`, { short_code: url.short_code, is_favorite: !url.is_favorite });
       } catch (error) {
         toast.error("Não foi possível favoritar a url.");
         console.error("Falha ao favoritar:", error);

@@ -1,5 +1,5 @@
 from fastapi.exceptions import HTTPException
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 from fastapi import Request, status
 from asyncpg import Connection
 from src.schemas.urls import URLCreate
@@ -7,9 +7,13 @@ from src.schemas.url_stats import URLStatsResponse
 from src.schemas.user import User
 from src.services import url_blacklist as url_blacklis_service
 from src.tables import urls as urls_table
+from src.tables import users as users_table
+from src import security
+import bcrypt
 from src.globals import Globals
 from user_agents import parse
 from src import util
+from datetime import datetime, timezone
 import json
 
 
@@ -27,7 +31,22 @@ async def get_urls(request: Request, limit: int, offset: int, conn: Connection):
     return response
 
 
-async def shorten(url: URLCreate, request: Request, conn: Connection, user: User | None = None):    
+async def shorten(url: URLCreate, refresh_token: str | None, request: Request, conn: Connection, user: User | None = None):
+    # Update user session
+    access_token = None
+    expires_at = None
+    if not user and refresh_token:
+        user: User | None = await users_table.get_user_by_refresh_token(refresh_token, conn)
+        if user:
+            access_token, _, expires_at = security.create_session_token(user.id)
+            await users_table.update_user_session_token(
+                user.id,
+                refresh_token,
+                expires_at,
+                conn        
+            )         
+
+    # Create url
     base_url: str = util.extract_base_url(request)
     original_url = str(url.url)
 
@@ -51,7 +70,11 @@ async def shorten(url: URLCreate, request: Request, conn: Connection, user: User
         await urls_table.set_url_qrcode(url_response['short_code'], qrcode_url, conn)
         url_response['qrcode_url'] = qrcode_url
     
-    return JSONResponse(url_response)
+    # Response
+    response = JSONResponse(url_response)
+    if access_token and refresh_token:
+        security.set_access_cookie(response, access_token, refresh_token)
+    return response
 
 
 async def register_click_event(short_code: str, request: Request, conn: Connection):    
@@ -96,16 +119,65 @@ async def register_click_event(short_code: str, request: Request, conn: Connecti
     )
 
 
+def url_has_expired(url: dict) -> bool:
+    if url.get('expires_at') and isinstance(url['expires_at'], datetime):
+        if url['expires_at'] < datetime.now(timezone.utc):
+            return True
+    return False
+        
+
 async def redirect_from_short_code(short_code: str, request: Request, conn: Connection):
-    original_url: str = await urls_table.get_original_url(short_code, conn)
-    
-    if original_url is None:
+    url: dict | None = await urls_table.get_redirect_url(short_code, conn)
+
+    if url is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="URL não encontrada")
+    
+    if url_has_expired(url):
+        return RedirectResponse(url=f"/url/expired/?original_url={url['original_url']}&expired_at={url['expires_at']}")
+    
+    if url['p_hash']:
+        return HTMLResponse(content=get_password_page_html(short_code))    
     
     await register_click_event(short_code, request, conn)
     await urls_table.update_clicks(short_code, conn)
 
-    return RedirectResponse(url=original_url)
+    return RedirectResponse(url=url['original_url'])
+
+
+async def verify_password_and_redirect(
+    short_code: str, 
+    password: str, 
+    request: Request, 
+    conn: Connection
+):
+    """Verifica a senha e redireciona se estiver correta"""
+    url: dict | None = await urls_table.get_redirect_url(short_code, conn)
+    
+    if url is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="URL não encontrada")
+        
+    if url_has_expired(url):
+        return RedirectResponse(
+            url=f"/url/expired/?original_url={url['original_url']}&expired_at={url['expires_at']}"
+        )
+        
+    if not url['p_hash']:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Esta URL não requer senha")
+        
+    password_correct = bcrypt.checkpw(
+        password.encode('utf-8'),
+        url['p_hash']
+    )
+    
+    if not password_correct:        
+        return HTMLResponse(
+            content=get_password_page_html(short_code, error=True),
+            status_code=401
+        )
+    
+    await register_click_event(short_code, request, conn)
+    await urls_table.update_clicks(short_code, conn)
+    return RedirectResponse(url=url['original_url'])
 
 
 async def get_url_stats(short_code: str, conn: Connection):
@@ -156,3 +228,156 @@ async def get_url_stats(short_code: str, conn: Connection):
                 data[field] = [] if field in ["timeline", "top_countries", "top_cities", "top_referers"] else {}
     
     return URLStatsResponse(**data)
+
+
+
+def get_password_page_html(short_code: str, error: bool = False) -> str:
+    """Retorna o HTML da página de verificação de senha"""
+    error_message = """
+        <div style="background-color: #fee; border: 1px solid #fcc; color: #c33; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
+            ❌ Senha incorreta. Tente novamente.
+        </div>
+    """ if error else ""
+    
+    return f"""
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>URL Protegida - Senha Necessária</title>
+        <style>
+            * {{
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }}
+            
+            body {{
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+            }}
+            
+            .container {{
+                background: white;
+                padding: 40px;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+                max-width: 400px;
+                width: 100%;
+            }}
+            
+            .lock-icon {{
+                font-size: 48px;
+                text-align: center;
+                margin-bottom: 20px;
+            }}
+            
+            h1 {{
+                font-size: 24px;
+                color: #333;
+                text-align: center;
+                margin-bottom: 10px;
+            }}
+            
+            .subtitle {{
+                color: #666;
+                text-align: center;
+                margin-bottom: 30px;
+                font-size: 14px;
+            }}
+            
+            .form-group {{
+                margin-bottom: 20px;
+            }}
+            
+            label {{
+                display: block;
+                color: #555;
+                font-weight: 500;
+                margin-bottom: 8px;
+                font-size: 14px;
+            }}
+            
+            input[type="password"] {{
+                width: 100%;
+                padding: 12px 16px;
+                border: 2px solid #e0e0e0;
+                border-radius: 8px;
+                font-size: 16px;
+                transition: border-color 0.3s;
+            }}
+            
+            input[type="password"]:focus {{
+                outline: none;
+                border-color: #667eea;
+            }}
+            
+            button {{
+                width: 100%;
+                padding: 14px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: transform 0.2s, box-shadow 0.2s;
+            }}
+            
+            button:hover {{
+                transform: translateY(-2px);
+                box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+            }}
+            
+            button:active {{
+                transform: translateY(0);
+            }}
+            
+            .short-code {{
+                background: #f5f5f5;
+                padding: 8px 12px;
+                border-radius: 6px;
+                font-family: monospace;
+                font-size: 14px;
+                text-align: center;
+                margin-bottom: 20px;
+                color: #555;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="lock-icon">🔒</div>
+            <h1>URL Protegida</h1>
+            <p class="subtitle">Esta URL requer uma senha para acesso</p>
+            
+            <div class="short-code">/{short_code}</div>
+            
+            {error_message}
+            
+            <form method="POST" action="/{short_code}/verify">
+                <div class="form-group">
+                    <label for="password">Digite a senha:</label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password" 
+                        required 
+                        autofocus
+                        placeholder="••••••••"
+                    >
+                </div>
+                
+                <button type="submit">Acessar URL</button>
+            </form>
+        </div>
+    </body>
+    </html>
+    """

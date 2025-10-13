@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Request, Depends, Query, status
+from fastapi import APIRouter, Request, Depends, Query, status, Form, Cookie
+from fastapi.responses import HTMLResponse
 from src.security import get_user_from_token_if_exists
-from src.schemas.urls import URLResponse, URLCreate, UrlPagination
+from src.schemas.urls import URLResponse, URLCreate, UrlPagination, ExpiredUrl
 from src.schemas.url_stats import URLStatsResponse, URLStatsNotFound
 from src.schemas.user import User
 from src.db import get_db
@@ -14,11 +15,12 @@ router = APIRouter()
 @router.post("/url", response_model=URLResponse)
 async def shorten_url(
     url: URLCreate, 
-    request: Request, 
+    request: Request,
+    refresh_token: str | None = Cookie(default=None),
     user: User | None = Depends(get_user_from_token_if_exists),
     conn: Connection = Depends(get_db)
-):    
-    return await url_service.shorten(url, request, conn, user)
+):      
+    return await url_service.shorten(url, refresh_token, request, conn, user)
 
 
 @router.get("/{short_code}")
@@ -28,6 +30,16 @@ async def redirect_from_short_code(
     conn: Connection = Depends(get_db)
 ):
     return await url_service.redirect_from_short_code(short_code, request, conn)
+
+
+@router.post("/{short_code}/verify")
+async def verify_password(
+    short_code: str,
+    request: Request,
+    password: str = Form(...),
+    conn: Connection = Depends(get_db)
+):    
+    return await url_service.verify_password_and_redirect(short_code, password, request, conn)
 
 
 @router.get(

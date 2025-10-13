@@ -56,7 +56,7 @@ async def delete_all_users(conn: Connection = Depends(get_db)):
     return await admin_service.delete_all_users(conn)
 
 
-@router.get("/urls", response_model=UrlPagination)
+@router.get("/urls")
 async def get_urls(
     request: Request, 
     limit: int = Query(default=64, ge=0, le=64), 

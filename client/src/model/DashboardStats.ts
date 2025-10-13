@@ -2,6 +2,7 @@
 
 export interface TopURL {
   short_code: string;
+  short_url: string;
   title?: string | null;
   clicks: number;
   original_url: string;

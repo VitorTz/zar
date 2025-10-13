@@ -46,13 +46,19 @@
   color: var(--primary-color);
 }
 
-/* Estilo para as seções de conteúdo */
 .stats-section {
   background-color: var(--surface-color);
-  padding: 2rem;
+  padding: 1.5rem;
   border-radius: 12px;
   border: 1px solid var(--border-color);
   margin-bottom: 3rem;
+  overflow-x: auto; /* Evita quebra horizontal */
+}
+
+/* Mantém o gráfico proporcional em telas pequenas */
+.stats-section .recharts-responsive-container {
+  width: 100% !important;
+  min-width: 350px; /* garante espaço mínimo de renderização */
 }
 
 /* Estilos da tabela */
@@ -88,4 +94,19 @@ td a {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Ajuste específico para mobile */
+@media (max-width: 600px) {
+  .stats-section {
+    padding: 1rem;
+  }
+
+  .recharts-wrapper {
+    min-width: 320px;
+  }
+
+  .recharts-surface {
+    overflow: visible;
+  }
 }

@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Request, status
-from fastapi.responses import Response, FileResponse
+from fastapi import FastAPI, Request, status, Query
+from fastapi.responses import Response, FileResponse, HTMLResponse
 from fastapi.exceptions import RequestValidationError, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.gzip import GZipMiddleware
 from src.constants import Constants
+from src.schemas.urls import ExpiredUrl
 from src.cache.config import CacheSettings
 from src.services import logs as log_service
 from src import util
@@ -20,6 +21,7 @@ from src.routes import auth
 from src.routes import user
 from src.routes import logs
 from src.routes import dashboard
+from datetime import datetime, timezone
 import redis.asyncio as redis
 import time
 import contextlib
@@ -127,6 +129,27 @@ async def favicon():
     favicon_path = os.path.join("static", "favicon.ico")
     return FileResponse(favicon_path)
 
+
+@app.get("/url/expired", response_class=HTMLResponse, summary="Página para URL Expirada")
+async def show_expired_page(request: Request, original_url: str = Query(), expired_at: str = Query()):
+
+    context = {
+        "request": request,
+        "expired_at": expired_at
+    }    
+    
+    return templates.TemplateResponse("expired.html", context)
+
+
+@app.get("/url/password", response_class=HTMLResponse, summary="Página para URL Expirada")
+async def show_password_page(request: Request, original_url: str = Query(), expired_at: str = Query()):
+
+    context = {
+        "request": request,
+        "expired_at": expired_at
+    }    
+    
+    return templates.TemplateResponse("expired.html", context)
 
 
 ########################## MIDDLEWARES ##########################

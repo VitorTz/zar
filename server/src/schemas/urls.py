@@ -3,6 +3,12 @@ from typing import List, Optional
 from datetime import datetime
 
 
+class ExpiredUrl(BaseModel):
+
+    original_url: str
+    expires_at: datetime
+    
+
 class URLCreate(BaseModel):
 
     url: HttpUrl

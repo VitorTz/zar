@@ -17,8 +17,8 @@ router = APIRouter()
     summary="Obter estatísticas do dashboard",
     description="Retorna todas as estatísticas agregadas do dashboard a partir da materialized view"
 )
-async def get_dashboard_stats(conn: Connection = Depends(get_db)):    
-    return await dashboard_service.get_dashboard_stats(conn)
+async def get_dashboard_stats(request: Request, conn: Connection = Depends(get_db)):
+    return await dashboard_service.get_dashboard_stats(request, conn)
 
 
 @router.post(

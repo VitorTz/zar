@@ -245,7 +245,7 @@
 
 /* Quando o card está aberto, expande a seção de stats */
 .url-item.stats-open .url-stats-details {
-  max-height: 500px; /* Um valor alto o suficiente para caber o conteúdo */
+  max-height: 1300px; /* Um valor alto o suficiente para caber o conteúdo */
   opacity: 1;
   border-top: 1px solid var(--border-color);
   margin-top: 1.5rem; /* Adiciona espaço entre o conteúdo principal e os stats */
@@ -332,8 +332,13 @@
   font-size: 1.2rem; /* Tamanho ajustado para as novas métricas */
 }
 
-/* Estilo do gráfico */
+.timeline-chart-wrapper {
+  width: 100%;
+  overflow-x: auto; /* Permite rolagem horizontal em telas pequenas */
+}
+
 .timeline-chart {
+  min-width: 350px; /* Garante espaço mínimo para o gráfico não quebrar */
   width: 100%;
 }
 
@@ -373,7 +378,7 @@
   color: var(--text-secondary-color);
 }
 
-/* --- MEDIA QUERY PARA RESPONSIVIDADE --- */
+
 @media (max-width: 768px) {
 
   /* ✨ CORREÇÃO PRINCIPAL: Empilha o QR code e os detalhes verticalmente */

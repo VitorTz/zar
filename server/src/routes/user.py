@@ -50,7 +50,7 @@ async def delele_user_url(
     return await user_service.delete_user_url(user, url, conn)
 
 
-@router.get("/metrics", response_model=UserStats)
+@router.get("/stats", response_model=UserStats)
 async def get_user_stats(
     user: User = Depends(get_user_from_token),
     conn: Connection = Depends(get_db)
