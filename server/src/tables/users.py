@@ -316,17 +316,17 @@ async def update_user_last_login_at(user_id: str, conn: Connection):
         user_id
     )
 
-async def delete_user_url(user_id: str, url_id: str, conn: Connection):
+async def delete_user_url(user_id: str, short_code: str, conn: Connection):
     await conn.execute(
         """
             DELETE FROM
-                user_urls
+                urls
             WHERE
                 user_id = $1 AND
-                url_id = $2
+                short_code = $2
         """,
         user_id,
-        url_id
+        short_code
     )
 
 
@@ -349,22 +349,40 @@ async def assign_url_to_user(url: URLResponse, user_id: str, conn: Connection):
         )
 
 
-async def set_user_favorite_url(user_id: str, short_code: str, state: bool, conn: Connection):
+async def set_user_favorite_url(user_id: str, short_code: str, is_favorite: bool, conn: Connection):
     await conn.execute(
         """
             UPDATE 
-                user_urls
+                urls
             SET
                 is_favorite = $1
             WHERE
                 user_id = $2 AND
                 short_code = $3
         """,
-        state,
+        is_favorite,
         user_id,
         short_code
     )
 
+
 async def get_user_stats(user_id: str, conn: Connection) -> dict | None:
-    r = await conn.fetchrow("SELECT * FROM v_user_stats WHERE id = $1;", user_id)
+    r = await conn.fetchrow(
+        """
+            SELECT 
+                id::text,
+                email,
+                TO_CHAR(member_since, 'DD-MM-YYYY HH24:MI:SS') as member_since,
+                total_urls,
+                favorite_urls,
+                total_clicks,
+                TO_CHAR(last_url_created, 'DD-MM-YYYY HH24:MI:SS') as last_url_created,
+                TO_CHAR(last_click_received, 'DD-MM-YYYY HH24:MI:SS') as last_click_received
+            FROM 
+                v_user_stats 
+            WHERE 
+                id = $1;
+        """, 
+        user_id
+    )
     return dict(r) if r else None

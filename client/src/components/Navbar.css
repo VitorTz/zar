@@ -200,7 +200,7 @@
   font-weight: 700; /* Opcional: Deixa o texto em negrito para dar mais destaque */
 }
 
-/* --- MEDIA QUERY PARA CELULAR --- */
+
 @media (max-width: 768px) {
   .navbar-links {
     display: none;

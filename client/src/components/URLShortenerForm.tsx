@@ -13,7 +13,7 @@ const URLShortenerForm = ({ onShorten }: {onShorten: (data: any) => any}) => {
     setError('');
     setLoading(true);
     try {
-      const response = await api.post('/', { url });
+      const response = await api.post('/url', { url });
       onShorten(response.data);
       setUrl('');
     } catch (err) {

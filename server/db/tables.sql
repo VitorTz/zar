@@ -86,14 +86,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Função para refresh do dashboard
-CREATE OR REPLACE FUNCTION refresh_dashboard_stats()
-RETURNS void AS $$
-BEGIN
-    REFRESH MATERIALIZED VIEW CONCURRENTLY mv_dashboard_stats;
-END;
-$$ LANGUAGE plpgsql;
-
 ------------------------------------------------
 ----                [DOMAINS]               ----
 ------------------------------------------------
@@ -374,14 +366,14 @@ END$$;
 -- View de URLs populares
 CREATE OR REPLACE VIEW v_popular_urls AS
 SELECT
-    u.short_code,
+    MIN(u.short_code) AS short_code, -- apenas um exemplo de short_code
     u.original_url,
-    u.title,
-    u.clicks,
-    u.created_at,
-    u.last_clicked_at,
-    COUNT(DISTINCT ua.id) as unique_visitors,
-    COUNT(DISTINCT ua.country_code) as countries_reached
+    MIN(u.title) AS title,
+    SUM(u.clicks) AS clicks,
+    MIN(u.created_at) AS created_at,
+    MAX(u.last_clicked_at) AS last_clicked_at,
+    COUNT(DISTINCT ua.id) AS unique_visitors,
+    COUNT(DISTINCT ua.country_code) AS countries_reached
 FROM 
     urls u
 LEFT JOIN 
@@ -389,14 +381,10 @@ LEFT JOIN
 WHERE 
     u.is_active = TRUE
 GROUP BY 
-    u.short_code, 
-    u.original_url, 
-    u.title, 
-    u.clicks, 
-    u.created_at, 
-    u.last_clicked_at
+    u.original_url
 ORDER BY 
-    u.clicks DESC;
+    SUM(u.clicks) DESC;
+
 
 -- View de estatísticas de usuário
 CREATE OR REPLACE VIEW v_user_stats AS
@@ -409,10 +397,16 @@ SELECT
     COALESCE(SUM(urls.clicks), 0) as total_clicks,
     MAX(urls.created_at) as last_url_created,
     MAX(urls.last_clicked_at) as last_click_received
-FROM users u
-LEFT JOIN urls ON urls.user_id = u.id AND urls.is_active = TRUE
-WHERE u.is_active = TRUE
-GROUP BY u.id, u.email, u.created_at;
+FROM 
+    users u
+LEFT JOIN 
+    urls ON urls.user_id = u.id AND urls.is_active = TRUE
+WHERE 
+    u.is_active = TRUE
+GROUP BY 
+    u.id, 
+    u.email, 
+    u.created_at;
 
 -- View de sessões ativas
 CREATE OR REPLACE VIEW v_active_sessions AS
@@ -455,120 +449,352 @@ WITH recent_analytics AS (
     WHERE clicked_at >= NOW() - INTERVAL '30 days'
 )
 SELECT
-    ra.short_code,
-    COUNT(*) AS total_clicks,
-    COUNT(DISTINCT ip_address) AS unique_visitors,
-    MIN(clicked_at) AS first_click,
-    MAX(clicked_at) AS last_click,
-    
-    -- Timeline diário
-    (
+    u.short_code,
+    COALESCE(COUNT(ra.id), 0) AS total_clicks,
+    COALESCE(COUNT(DISTINCT ra.ip_address), 0) AS unique_visitors,
+    MIN(ra.clicked_at) AS first_click,
+    MAX(ra.clicked_at) AS last_click,
+
+    COALESCE((
         SELECT JSONB_AGG(jsonb_build_object('day', day, 'clicks', clicks) ORDER BY day DESC)
         FROM (
             SELECT 
                 DATE(clicked_at) AS day,
                 COUNT(*) AS clicks
             FROM recent_analytics ra2
-            WHERE ra2.short_code = ra.short_code
+            WHERE ra2.short_code = u.short_code
             GROUP BY DATE(clicked_at)
         ) t
-    ) AS timeline,
-    
-    -- Top países
-    (
+    ), '[]'::jsonb) AS timeline,
+
+    COALESCE((
         SELECT JSONB_AGG(jsonb_build_object('country_code', country_code, 'clicks', clicks) ORDER BY clicks DESC)
         FROM (
             SELECT country_code, COUNT(*) as clicks
             FROM recent_analytics ra2
-            WHERE ra2.short_code = ra.short_code 
+            WHERE ra2.short_code = u.short_code 
               AND country_code IS NOT NULL
             GROUP BY country_code
             LIMIT 10
         ) t
-    ) AS top_countries,
-    
-    -- Top cidades
-    (
+    ), '[]'::jsonb) AS top_countries,
+
+    COALESCE((
         SELECT JSONB_AGG(jsonb_build_object('city', city, 'clicks', clicks) ORDER BY clicks DESC)
         FROM (
             SELECT city, COUNT(*) as clicks
             FROM recent_analytics ra3
-            WHERE ra3.short_code = ra.short_code 
+            WHERE ra3.short_code = u.short_code 
               AND city IS NOT NULL
             GROUP BY city
             LIMIT 5
         ) t
-    ) AS top_cities,
-    
-    -- Distribuição de dispositivos
-    (
+    ), '[]'::jsonb) AS top_cities,
+
+    COALESCE((
         SELECT JSONB_OBJECT_AGG(device_type, count)
         FROM (
             SELECT device_type, COUNT(*) as count
             FROM recent_analytics ra4
-            WHERE ra4.short_code = ra.short_code 
+            WHERE ra4.short_code = u.short_code 
               AND device_type IS NOT NULL
             GROUP BY device_type
         ) x
-    ) AS devices,
-    
-    -- Navegadores
-    (
+    ), '{}'::jsonb) AS devices,
+
+    COALESCE((
         SELECT JSONB_OBJECT_AGG(browser, count)
         FROM (
             SELECT browser, COUNT(*) as count
             FROM recent_analytics ra5
-            WHERE ra5.short_code = ra.short_code 
+            WHERE ra5.short_code = u.short_code 
               AND browser IS NOT NULL
             GROUP BY browser
         ) x
-    ) AS browsers,
-    
-    -- Sistemas operacionais
-    (
+    ), '{}'::jsonb) AS browsers,
+
+    COALESCE((
         SELECT JSONB_OBJECT_AGG(os, count)
         FROM (
             SELECT os, COUNT(*) as count
             FROM recent_analytics ra6
-            WHERE ra6.short_code = ra.short_code 
+            WHERE ra6.short_code = u.short_code 
               AND os IS NOT NULL
             GROUP BY os
         ) x
-    ) AS operating_systems,
-    
-    -- Top referers
-    (
+    ), '{}'::jsonb) AS operating_systems,
+
+    COALESCE((
         SELECT JSONB_AGG(jsonb_build_object('referer', referer, 'clicks', clicks) ORDER BY clicks DESC)
         FROM (
             SELECT referer, COUNT(*) as clicks
             FROM recent_analytics ra7
-            WHERE ra7.short_code = ra.short_code 
+            WHERE ra7.short_code = u.short_code 
               AND referer IS NOT NULL 
               AND referer != ''
             GROUP BY referer
             LIMIT 5
         ) t
-    ) AS top_referers
+    ), '[]'::jsonb) AS top_referers
 
-FROM recent_analytics ra
-GROUP BY ra.short_code;
+FROM urls u
+LEFT JOIN recent_analytics ra ON ra.short_code = u.short_code
+GROUP BY u.short_code;
 
 ------------------------------------------------
 ----          [MATERIALIZED VIEWS]          ----
 ------------------------------------------------
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_dashboard_stats AS
+WITH 
+-- Estatísticas gerais de URLs
+url_stats AS (
+    SELECT 
+        COUNT(*) as total_urls,
+        COUNT(*) FILTER (WHERE is_favorite = TRUE) as favorite_urls,
+        COUNT(*) FILTER (WHERE custom_alias = TRUE) as custom_alias_urls,
+        COUNT(*) FILTER (WHERE p_hash IS NOT NULL) as protected_urls,
+        COUNT(*) FILTER (WHERE expires_at IS NOT NULL AND expires_at > NOW()) as expiring_urls,
+        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') as urls_created_last_24h,
+        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') as urls_created_last_7d,
+        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days') as urls_created_last_30d,
+        COALESCE(SUM(clicks), 0) as total_clicks,
+        COALESCE(AVG(clicks), 0) as avg_clicks_per_url,
+        COALESCE(MAX(clicks), 0) as max_clicks_single_url
+    FROM urls 
+    WHERE is_active = TRUE
+),
+-- Estatísticas de usuários
+user_stats AS (
+    SELECT 
+        COUNT(*) as total_users,
+        COUNT(*) FILTER (WHERE is_verified = TRUE) as verified_users,
+        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') as new_users_last_7d,
+        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days') as new_users_last_30d,
+        COUNT(*) FILTER (WHERE last_login_at > NOW() - INTERVAL '24 hours') as users_active_last_24h,
+        COUNT(*) FILTER (WHERE last_login_at > NOW() - INTERVAL '7 days') as users_active_last_7d
+    FROM users 
+    WHERE is_active = TRUE
+),
+-- Estatísticas de analytics/clicks
+analytics_stats AS (
+    SELECT 
+        COUNT(*) FILTER (WHERE clicked_at > NOW() - INTERVAL '1 hour') as clicks_last_hour,
+        COUNT(*) FILTER (WHERE clicked_at > NOW() - INTERVAL '24 hours') as clicks_last_24h,
+        COUNT(*) FILTER (WHERE clicked_at > NOW() - INTERVAL '7 days') as clicks_last_7d,
+        COUNT(*) FILTER (WHERE clicked_at > NOW() - INTERVAL '30 days') as clicks_last_30d,
+        COUNT(DISTINCT ip_address) FILTER (WHERE clicked_at > NOW() - INTERVAL '24 hours') as unique_visitors_24h,
+        COUNT(DISTINCT ip_address) FILTER (WHERE clicked_at > NOW() - INTERVAL '7 days') as unique_visitors_7d,
+        COUNT(DISTINCT country_code) FILTER (WHERE clicked_at > NOW() - INTERVAL '30 days') as countries_reached_30d
+    FROM url_analytics
+),
+-- Top URLs por clicks
+top_urls AS (
+    SELECT JSONB_AGG(
+        jsonb_build_object(
+            'short_code', short_code,
+            'title', title,
+            'clicks', clicks,
+            'original_url', LEFT(original_url, 50) || CASE WHEN LENGTH(original_url) > 50 THEN '...' ELSE '' END
+        ) ORDER BY clicks DESC
+    ) as top_10_urls
+    FROM (
+        SELECT short_code, title, clicks, original_url
+        FROM urls
+        WHERE is_active = TRUE
+        ORDER BY clicks DESC
+        LIMIT 10
+    ) t
+),
+-- Distribuição de dispositivos (últimos 7 dias)
+device_distribution AS (
+    SELECT JSONB_OBJECT_AGG(
+        COALESCE(device_type, 'unknown'), 
+        count
+    ) as device_stats
+    FROM (
+        SELECT 
+            device_type,
+            COUNT(*) as count
+        FROM url_analytics
+        WHERE clicked_at > NOW() - INTERVAL '7 days'
+          AND device_type IS NOT NULL
+        GROUP BY device_type
+    ) d
+),
+-- Top países (últimos 30 dias)
+top_countries AS (
+    SELECT JSONB_AGG(
+        jsonb_build_object(
+            'country_code', country_code,
+            'clicks', clicks
+        ) ORDER BY clicks DESC
+    ) as top_10_countries
+    FROM (
+        SELECT 
+            country_code,
+            COUNT(*) as clicks
+        FROM url_analytics
+        WHERE clicked_at > NOW() - INTERVAL '30 days'
+          AND country_code IS NOT NULL
+        GROUP BY country_code
+        ORDER BY clicks DESC
+        LIMIT 10
+    ) c
+),
+-- Sessões ativas
+session_stats AS (
+    SELECT 
+        COUNT(*) as active_sessions,
+        COUNT(DISTINCT user_id) as users_with_active_sessions,
+        COUNT(*) FILTER (WHERE last_used_at > NOW() - INTERVAL '1 hour') as sessions_active_last_hour
+    FROM user_session_tokens
+    WHERE expires_at > NOW() 
+      AND revoked = FALSE
+),
+-- Tags mais utilizadas
+tag_stats AS (
+    WITH tag_usage AS (
+        SELECT tag_id, COUNT(*) AS usage_count
+        FROM url_tag_relations
+        GROUP BY tag_id
+    )
+    SELECT 
+        (SELECT COUNT(*) FROM tag_usage) AS total_tags,
+        (
+            SELECT JSONB_AGG(
+                jsonb_build_object(
+                    'tag_name', ut.tag_name,
+                    'usage_count', tu.usage_count,
+                    'tag_color', ut.tag_color
+                ) ORDER BY tu.usage_count DESC
+            )
+            FROM (
+                SELECT tu.tag_id, tu.usage_count
+                FROM tag_usage tu
+                ORDER BY tu.usage_count DESC
+                LIMIT 10
+            ) tu
+            JOIN url_tags ut ON ut.id = tu.tag_id
+        ) AS top_10_tags
+),
+-- Timeline de crescimento (últimos 30 dias)
+growth_timeline AS (
+    SELECT JSONB_AGG(
+        jsonb_build_object(
+            'date', date,
+            'new_urls', new_urls,
+            'new_users', new_users,
+            'total_clicks', total_clicks
+        ) ORDER BY date DESC
+    ) as last_30_days_timeline
+    FROM (
+        SELECT 
+            date_series::DATE as date,
+            (SELECT COUNT(*) FROM urls WHERE DATE(created_at) = date_series::DATE AND is_active = TRUE) as new_urls,
+            (SELECT COUNT(*) FROM users WHERE DATE(created_at) = date_series::DATE AND is_active = TRUE) as new_users,
+            (SELECT COUNT(*) FROM url_analytics WHERE DATE(clicked_at) = date_series::DATE) as total_clicks
+        FROM generate_series(
+            NOW() - INTERVAL '29 days',
+            NOW(),
+            INTERVAL '1 day'
+        ) as date_series
+    ) t
+)
 SELECT 
-    (SELECT COUNT(*) FROM urls WHERE is_active = TRUE) as total_urls,
-    (SELECT COUNT(*) FROM users WHERE is_active = TRUE) as total_users,
-    (SELECT COALESCE(SUM(clicks), 0) FROM urls WHERE is_active = TRUE) as total_clicks,
-    (SELECT COUNT(*) FROM url_analytics WHERE clicked_at > NOW() - INTERVAL '24 hours') as clicks_last_24h,
-    (SELECT COUNT(*) FROM url_analytics WHERE clicked_at > NOW() - INTERVAL '7 days') as clicks_last_7d,
-    (SELECT COUNT(*) FROM urls WHERE created_at > NOW() - INTERVAL '7 days' AND is_active = TRUE) as urls_created_last_week,
-    (SELECT COUNT(DISTINCT user_id) FROM user_session_tokens WHERE last_used_at > NOW() - INTERVAL '24 hours' AND revoked = FALSE) as active_users_24h,
-    TO_CHAR(NOW(), 'DD-MM-YYYY HH24:MI:SS') as last_updated;
+    -- URLs
+    us.total_urls,
+    us.favorite_urls,
+    us.custom_alias_urls,
+    us.protected_urls,
+    us.expiring_urls,
+    us.urls_created_last_24h,
+    us.urls_created_last_7d,
+    us.urls_created_last_30d,
+    us.total_clicks,
+    ROUND(us.avg_clicks_per_url::NUMERIC, 2) as avg_clicks_per_url,
+    us.max_clicks_single_url,
+    
+    -- Usuários
+    u.total_users,
+    u.verified_users,
+    u.new_users_last_7d,
+    u.new_users_last_30d,
+    u.users_active_last_24h,
+    u.users_active_last_7d,
+    
+    -- Analytics/Clicks
+    a.clicks_last_hour,
+    a.clicks_last_24h,
+    a.clicks_last_7d,
+    a.clicks_last_30d,
+    a.unique_visitors_24h,
+    a.unique_visitors_7d,
+    a.countries_reached_30d,
+    
+    -- Sessões
+    ss.active_sessions,
+    ss.users_with_active_sessions,
+    ss.sessions_active_last_hour,
+    
+    -- Tags
+    COALESCE(ts.total_tags, 0) as total_tags,
+    COALESCE(ts.top_10_tags, '[]'::jsonb) as top_tags,
+    
+    -- Agregados complexos
+    COALESCE(tu.top_10_urls, '[]'::jsonb) as top_urls,
+    COALESCE(dd.device_stats, '{}'::jsonb) as device_distribution,
+    COALESCE(tc.top_10_countries, '[]'::jsonb) as top_countries,
+    COALESCE(gt.last_30_days_timeline, '[]'::jsonb) as growth_timeline,
+    
+    -- Metadados
+    NOW() as last_updated,
+    TO_CHAR(NOW(), 'DD-MM-YYYY HH24:MI:SS') as last_updated_formatted
+FROM 
+    url_stats us,
+    user_stats u,
+    analytics_stats a,
+    session_stats ss,
+    top_urls tu,
+    device_distribution dd,
+    top_countries tc,
+    tag_stats ts,
+    growth_timeline gt;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_dashboard_stats ON mv_dashboard_stats(last_updated);
+-- Índice único para refresh concorrente
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_dashboard_stats_updated ON mv_dashboard_stats(last_updated);
+
+
+------------------------------------------------
+----        [FUNÇÃO DE REFRESH]             ----
+------------------------------------------------
+CREATE OR REPLACE FUNCTION refresh_dashboard_stats()
+RETURNS TABLE(
+    execution_time_ms NUMERIC,
+    last_updated TIMESTAMPTZ
+) AS $$
+DECLARE
+    start_time TIMESTAMPTZ;
+    end_time TIMESTAMPTZ;
+    refreshed_at TIMESTAMPTZ;
+BEGIN
+    start_time := clock_timestamp();
+    
+    REFRESH MATERIALIZED VIEW CONCURRENTLY mv_dashboard_stats;
+    
+    end_time := clock_timestamp();
+
+    SELECT last_updated
+    INTO refreshed_at
+    FROM mv_dashboard_stats
+    LIMIT 1;
+
+    RETURN QUERY
+    SELECT 
+        ROUND(EXTRACT(EPOCH FROM (end_time - start_time)) * 1000, 2) AS execution_time_ms,
+        refreshed_at AS last_updated;
+END;
+$$ LANGUAGE plpgsql;
 
 ------------------------------------------------
 ----          [REFRESH SCHEDULES]           ----

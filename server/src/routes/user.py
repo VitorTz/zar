@@ -1,10 +1,11 @@
 from src.security import get_user_from_token
-from src.schemas.user import User
+from src.schemas.user import User, UserStats
 from src.schemas.urls import UrlPagination, URLDelete, CreateFavoriteURL, URLResponse, UrlShortCode
 from fastapi import APIRouter, Depends, Query, Request
 from asyncpg import Connection
 from src.db import get_db
 from src.services import user as user_service
+from src.services import dashboard as metrics_service
 
 
 router = APIRouter()
@@ -24,10 +25,11 @@ async def get_user_urls(
 @router.put("/url/favorite", response_model=URLResponse)
 async def set_favorite_url(
     url: CreateFavoriteURL,
+    request: Request,
     user: User | None = Depends(get_user_from_token),
     conn: Connection = Depends(get_db)
 ):
-    return await user_service.set_user_favorite_url(user, url, conn)
+    return await user_service.set_user_favorite_url(user, url, request, conn)
 
 
 @router.post("/url")
@@ -46,3 +48,11 @@ async def delele_user_url(
     conn: Connection = Depends(get_db)
 ):
     return await user_service.delete_user_url(user, url, conn)
+
+
+@router.get("/metrics", response_model=UserStats)
+async def get_user_stats(
+    user: User = Depends(get_user_from_token),
+    conn: Connection = Depends(get_db)
+):
+    return await metrics_service.get_user_stats(user, conn)

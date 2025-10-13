@@ -1,20 +1,14 @@
 import { create } from "zustand";
-import { Url } from "../model/Url";
+import { UrlList } from "../utils/UrlList";
 
 
 interface UrlState {
-    urls: Url[]  
-    setUrls: (urls: Url[]) => any
-    favoriteUrl: (url: Url) => any
-    deleteUrl: (url: Url) => any
+    urlList: UrlList,
+    setUrlList: (urlList: UrlList) => any
 }
 
 
 export const useUrlListState = create<UrlState>((set) => ({
-    urls: [],  
-    setUrls: (urls: Url[]) => set((state) => ({ urls })),
-    deleteUrl: (url: Url) => set((state) => ({urls: state.urls.filter(i => i.id != url.id)})),
-    favoriteUrl: (url: Url) => set((state) => ({
-        urls: state.urls.map(i => i.id == url.id ? {...i, is_favorite: !i.is_favorite} : i)
-    }))
+    urlList: new UrlList([]),  
+    setUrlList: (urlList: UrlList) => set((state) => ({ urlList }))
 }));

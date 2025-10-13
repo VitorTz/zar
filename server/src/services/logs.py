@@ -124,8 +124,8 @@ async def log_rate_limit_violation(
 
 
 
-async def get_logs(method: str | None, sort_by: str, sort_order: str, limit: int, offset: int, conn: Connection) -> JSONResponse:
-    total, results = await logs_table.get_logs(method, sort_by, sort_order, limit, offset, conn)
+async def get_logs(limit: int, offset: int, conn: Connection):
+    total, results = await logs_table.get_logs(limit=limit, offset=offset, conn=conn)
     response = {
         "total": total,
         "limit": limit,
@@ -134,7 +134,7 @@ async def get_logs(method: str | None, sort_by: str, sort_order: str, limit: int
         "pages": (total + limit - 1) // limit,
         "results": results
     }
-    return JSONResponse(content=response)
+    return JSONResponse(response)
 
 
 async def delete_logs(interval_minutes: int | None, conn: Connection) -> Response:

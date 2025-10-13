@@ -80,3 +80,14 @@ class UserPagination(BaseModel):
 class UseDelete(BaseModel):
 
     user_id: str
+
+
+class UserStats(BaseModel):
+
+    id: str
+    email: str
+    member_since: str
+    total_urls: int
+    favorite_urls: int
+    total_clicks: int
+    last_url_created: Optional[str]

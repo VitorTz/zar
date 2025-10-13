@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { threadPool } from '../services/ThreadPool';
-import api from '../services/api';
+
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -15,17 +14,11 @@ const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const postUrl = async (url) => {
-    await api.post('/user/url?url_id=' + url.id);
-  };
-
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
     setError('');
     try {
       await login(email, password);
-      const urls = JSON.parse(localStorage.getItem('localUrls'));
-      await threadPool(urls, postUrl);
       navigate('/');
     } catch (err) {
       console.log(err);

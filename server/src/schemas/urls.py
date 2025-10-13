@@ -53,6 +53,7 @@ class UrlPagination(BaseModel):
 class UrlPopular(BaseModel):
 
     short_code: str
+    short_url: str
     original_url: str
     title: Optional[str]
     clicks: int
@@ -70,3 +71,29 @@ class UrlPopularPagination(BaseModel):
     page: int
     pages: int
     results: List[UrlPopular]
+
+
+
+class UrlAnalytic(BaseModel):
+
+    url_id: str
+    date: str
+    clicks: int
+    unique_visitors: int
+    countries: int
+    device_types: List[str]
+
+
+class UrlAnalyticPagination(BaseModel):
+
+    total: int
+    limit: int
+    offset: int
+    page: int
+    pages: int
+    results: List[UrlAnalytic]
+
+
+class UrlStats(BaseModel):
+
+    pass

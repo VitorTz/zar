@@ -1,0 +1,43 @@
+.not-found-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 4rem 1rem;
+  min-height: 60vh; /* Garante que o conteúdo fique centralizado verticalmente */
+}
+
+.not-found-container h1 {
+  font-size: 8rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  margin: 0;
+  line-height: 1;
+}
+
+.not-found-container h2 {
+  font-size: 2rem;
+  margin: 0.5rem 0 1rem 0;
+  color: var(--text-primary-color);
+}
+
+.not-found-container p {
+  font-size: 1rem;
+  color: var(--text-secondary-color);
+  margin-bottom: 2rem;
+}
+
+.back-home-link {
+  padding: 0.8rem 1.5rem;
+  background-color: var(--primary-color);
+  color: #fff;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.back-home-link:hover {
+  background-color: var(--primary-hover-color);
+}

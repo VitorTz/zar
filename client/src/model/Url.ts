@@ -1,11 +1,15 @@
 
 
 export type Url = {
-    id: string
-    short_code: string
-    short_url: string
+    
+    user_id: string | null
     original_url: string
-    qr_code_url: string
+    short_url: string
+    short_code: string
     clicks: number
+    qrcode_url: string
     is_favorite: boolean
+    created_at: string | null
+    expires_at: string | null
+
 }

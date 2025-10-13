@@ -1,11 +1,10 @@
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse
 from src.db import get_db, db_count, db_version
 from src.schemas.user import UserPagination, UseDelete
 from src.schemas.urls import UrlPagination
 from src.schemas.admin import HealthReport
-from src.schemas.log import LogPagination, RateLimitLogPagination
 from src.security import require_admin
 from src.services import admin as admin_service
 from src.services import urls as urls_service
@@ -35,34 +34,6 @@ async def health_check(conn: Connection = Depends(get_db)):
             "cpu": monitor.get_cpu_info(),
             "disk": monitor.get_disk_info()
         }
-    )
-
-
-@router.get("/logs", response_model=LogPagination)
-async def get_logs(
-    limit: int = Query(default=64, ge=0, le=64), 
-    offset: int = Query(default=0, ge=0),
-    conn: Connection = Depends(get_db)
-):
-    return await admin_service.get_logs(limit, offset, conn)
-
-
-@router.get("/logs/rate", response_model=RateLimitLogPagination)
-async def get_rate_limit_logs(
-    ip_address: str | None = Query(default=None),
-    min_attempts: int = Query(default=10, ge=0),
-    hours: int = Query(default=10, ge=0),
-    limit: int = Query(default=64, ge=0, le=64), 
-    offset: int = Query(default=0, ge=0),
-    conn: Connection = Depends(get_db)
-):
-    return await log_service.get_rate_limit_violations(
-        hours, 
-        min_attempts, 
-        limit, 
-        offset, 
-        conn, 
-        ip_address
     )
 
 

@@ -19,7 +19,7 @@ const ImageGeneratorModal = ({ url, onClose }: {url: Url | null, onClose: () => 
     setIsLoading(true);
     try {
       const imageDataUrl = await generateUrlImage({
-        qrCodeUrl: url.qr_code_url,
+        qrCodeUrl: url.qrcode_url,
         title,
         description,
         originalUrl: url.original_url,
@@ -67,7 +67,7 @@ const ImageGeneratorModal = ({ url, onClose }: {url: Url | null, onClose: () => 
             rows={3}
           />
 
-          <button type="submit" className="generate-button" disabled={isLoading}>
+          <button type="submit" className="button generate-button" disabled={isLoading}>
             {isLoading ? 'Gerando...' : 'Gerar e Baixar'}
           </button>
         </form>

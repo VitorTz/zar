@@ -1,4 +1,3 @@
-import React, { useState, useEffect } from 'react';
 import URLShortenerForm from '../components/URLShortenerForm';
 import URLList from '../components/UrlList';
 import toast from 'react-hot-toast';
@@ -11,38 +10,37 @@ import { useUrlListState } from '../store/urlStore';
 const HomePage = () => {
   
   const { user } = useAuth()
-  const { urls, setUrls } = useUrlListState()
-  
-  useEffect(() => {
-    const storedUrls = JSON.parse(localStorage.getItem('localUrls') || '[]');
-    setUrls(storedUrls)
-  }, []);
+  const { urlList, setUrlList } = useUrlListState()
 
-  const handleShorten = (newUrl: Url) => {
-    const updatedUrls = [newUrl, ...urls.filter(i => i.id != newUrl.id)];
-    setUrls(updatedUrls);
-    localStorage.setItem('localUrls', JSON.stringify(updatedUrls));
+  const handleShorten = (url: Url) => {
+    setUrlList(urlList.add(url))
   };
 
   const handleDelete = async (url: Url) => {
-    const updatedUrls = urls.filter(i => i.id != url.id)
-    setUrls(updatedUrls)
-    localStorage.setItem('localUrls', JSON.stringify(updatedUrls));
+    setUrlList(urlList.remove(url))
     toast.success('URL deletada!');
     try {
-      await api.delete('/user/url', { data: { url_id: url.id } });      
-    } catch (error) { }
+      await api.delete('/user/url', { data: { short_code: url.short_code } });
+    } catch (error) { 
+      setUrlList(urlList.add(url))
+    }
   }
 
-  const handleFavoriteToggle = async (clickedUrl: Url) => {
-    setUrls(urls.map(url => url.id === clickedUrl.id ? { ...url, is_favorite: !url.is_favorite } : url));
+  const handleFavorite = async (url: Url) => {
+    const is_favorite = !url.is_favorite
+    if (!user) {
+      toast.error("Você precisa estar logado para favoritar uma url!")
+      return
+    }
+    
+    setUrlList(urlList.favorite(url, is_favorite))
     if (user) {
       try {
-        await api.put(`/url/favorite`, {data: { url_id: clickedUrl.id, state: !clickedUrl.is_favorite }});
+        await api.put(`/url/favorite`, {data: { short_code: url.short_code, is_favorite: !url.is_favorite }});
       } catch (error) {
         toast.error("Não foi possível favoritar a url.");
         console.error("Falha ao favoritar:", error);
-        setUrls(urls.map(url => url.id === clickedUrl.id ? { ...url, is_favorite: !url.is_favorite } : url));
+        setUrlList(urlList.favorite(url, !is_favorite))
       }
     }
   };
@@ -51,7 +49,7 @@ const HomePage = () => {
     <div className="container">
       <h1>Encurte seus links.</h1>
       <URLShortenerForm onShorten={handleShorten} />
-      <URLList handleFavorite={handleFavoriteToggle} handleDelete={handleDelete} />
+      <URLList handleFavorite={handleFavorite} handleDelete={handleDelete} />
     </div>
   );
 };

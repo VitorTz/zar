@@ -12,7 +12,7 @@ const SignupPage = () => {
   const { signup } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
     setError('');
     if (password.length < 6) {

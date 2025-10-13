@@ -63,6 +63,11 @@
   font-size: 1rem;
 }
 
+.modal-content textarea,
+.modal-content input {
+  align-self: center;
+}
+
 .generate-button {
   margin-top: 1rem;
   padding: 0.8rem;
@@ -77,4 +82,10 @@
 
 .generate-button:disabled {
   background-color: #aaa;
+}
+
+@media (max-width: 768px) {
+  .modal-content {
+    max-width: 80%;
+  }
 }

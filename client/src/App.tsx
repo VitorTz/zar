@@ -8,7 +8,8 @@ import DashboardPage from './pages/DashboardPage';
 import StatsPage from './pages/StatsPage';
 import { useAuth } from './context/AuthContext';
 import { Toaster } from 'react-hot-toast';
-import Footer from './components/Footer'; 
+import Footer from './components/Footer';
+import NotFoundPage from './pages/NotFoundPage'; // 1. Importe a nova página
 import './App.css';
 
 
@@ -41,7 +42,8 @@ function App() {
             path="/dashboard"
             element={<PrivateRoute><DashboardPage /></PrivateRoute>} 
           />
-          <Route path="/stats" element={<StatsPage />} />
+          <Route path="/stats" element={<StatsPage />} />          
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
             

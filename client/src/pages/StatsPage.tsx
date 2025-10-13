@@ -4,9 +4,14 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import './StatsPage.css';
+import { normalizeTimestamp } from '../utils/util';
+import { UserStats } from '../model/User';
+import { DashboardStats } from '../model/DashboardStats';
+import { PopularUrl } from '../utils/PopularUrl';
+
 
 // Componente para os cartões de estatísticas gerais
-const StatCard = ({ title, value }) => (
+const StatCard = ({ title, value }: {title: string, value: string | number}) => (
   <div className="stat-card">
     <span className="stat-title">{title}</span>
     <span className="stat-value">{value}</span>
@@ -14,7 +19,7 @@ const StatCard = ({ title, value }) => (
 );
 
 // Componente para a tabela de URLs populares
-const PopularUrlsTable = ({ urls }) => (
+const PopularUrlsTable = ({ urls }: {urls: PopularUrl[]}) => (
   <div className="stats-section">
     <h2>URLs Mais Populares</h2>
     <div className="table-container">
@@ -28,7 +33,7 @@ const PopularUrlsTable = ({ urls }) => (
         </thead>
         <tbody>
           {urls.map(url => (
-            <tr key={url.id}>
+            <tr key={url.short_code}>
               <td><a href={url.short_url} target="_blank" rel="noopener noreferrer">{url.short_code}</a></td>
               <td className="original-url-cell" title={url.original_url}>{url.original_url}</td>
               <td>{url.clicks}</td>
@@ -42,9 +47,9 @@ const PopularUrlsTable = ({ urls }) => (
 
 const StatsPage = () => {
   const { user } = useAuth();
-  const [dashboardStats, setDashboardStats] = useState(null);
-  const [userStats, setUserStats] = useState(null);
-  const [popularUrls, setPopularUrls] = useState([]);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [popularUrls, setPopularUrls] = useState<PopularUrl[]>([]);
   const [dailyAnalytics, setDailyAnalytics] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -58,8 +63,8 @@ const StatsPage = () => {
           user ? api.get('/metrics/user') : Promise.resolve({ data: null })
         ]);
         setDashboardStats(dashRes.data);
-        setPopularUrls(popularRes.data);
-        setDailyAnalytics(dailyRes.data);
+        setPopularUrls(popularRes.data.results);
+        setDailyAnalytics(dailyRes.data.results);
         setUserStats(userRes.data);
       } catch (error) {
         console.error("Falha ao buscar estatísticas", error);
@@ -112,7 +117,7 @@ const StatsPage = () => {
                 <StatCard title="Total de URLs Criadas" value={userStats.total_urls} />
                 <StatCard title="URLs Favoritas" value={userStats.favorite_urls} />
                 <StatCard title="Total de Cliques Recebidos" value={userStats.total_clicks} />
-                <StatCard title="Membro Desde" value={new Date(userStats.member_since).toLocaleDateString('pt-BR')} />
+                <StatCard title="Membro Desde" value={normalizeTimestamp(userStats.member_since)} />
             </div>
         </div>
       )}

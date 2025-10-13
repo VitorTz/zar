@@ -1,12 +1,11 @@
-import React from 'react';
 import './Footer.css';
+
 
 const Footer = () => {
   return (
     <footer className="site-footer">
       <div className="footer-content">
         <div className="security-info">
-          <h3>Segurança em Primeiro Lugar 🛡️</h3>
           <p>
             Para garantir a sua segurança, este serviço utiliza a <strong><a target="_blank" href="https://developers.google.com/safe-browsing/v4/" className='footer-link'>Google Safe Browsing API</a></strong>. Todas as URLs são verificadas antes de serem encurtadas para proteger você contra sites maliciosos, phishing e malware.
           </p>
@@ -22,4 +21,4 @@ const Footer = () => {
   );
 };
 
-export default Footer;
+export default Footer

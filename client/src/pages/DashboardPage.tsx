@@ -4,18 +4,19 @@ import URLList from '../components/UrlList';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import { Url } from '../model/Url';
+import { useUrlListState } from '../store/urlStore';
 
 const DashboardPage = () => {
   
   const { user } = useAuth()
-  const [userUrls, setUserUrls] = useState<Url[]>([]);
+  const { urlList, setUrlList} = useUrlListState()
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchUserUrls = async () => {
       try {
         const response = await api.get('/user/urls');
-        setUserUrls(response.data.results);
+        setUrlList(urlList.addMany(response.data.results))
       } catch (error) {
         console.error("Falha ao buscar URLs do usuário", error);
       } finally {
@@ -28,31 +29,32 @@ const DashboardPage = () => {
 
   const handleDeleteUrl = async (url: Url) => {
     try {
-      const updatedUrls = userUrls.filter(i => i.id != url.id)
-      setUserUrls(updatedUrls)
-      localStorage.setItem('localUrls', JSON.stringify(updatedUrls));
+      setUrlList(urlList.remove(url))
       toast.success('URL deletada!');
       if (user) {      
-        api.delete('/user/url', { data: { url_id: url.id } });      
+        api.delete('/user/url', { data: { url_id: url.short_code } });
       }
     } catch (error) {
+      setUrlList(urlList.add(url))
       console.error("Falha ao deletar URLs do usuário", error);
     } finally {
       setLoading(false);
     }
   }
 
-  const handleFavoriteToggle = async (clickedUrl: Url) => {    
-    const updatedUrls = userUrls.map(url =>
-      url.id === clickedUrl.id ? { ...url, is_favorite: !url.is_favorite } : url
-    );
-    setUserUrls(updatedUrls);
+  const handleFavorite = async (url: Url) => {    
+    const is_favorite = !url.is_favorite
+    if (!user) {
+      toast.error("Você precisa estar logado para favoritar uma url!")
+      return
+    }
+    setUrlList(urlList.favorite(url, is_favorite))
     if (user) {
       try {
-        await api.put(`/url/favorite`, {data: { url_id: clickedUrl.id, state: !clickedUrl.is_favorite }});
+        await api.put('/user/url/favorite', { short_code: url.short_code, is_favorite: !url.is_favorite });
       } catch (error) {
         toast.error("Não foi possível favoritar a url.");
-        setUserUrls(userUrls);
+        setUrlList(urlList.favorite(url, !is_favorite))
         console.error("Falha ao favoritar:", error);
       }
     }
@@ -65,9 +67,8 @@ const DashboardPage = () => {
   return (
     <div className="container">
       <URLList 
-        showNoUrlsText={true} 
-        urls={userUrls} 
-        handleFavorite={handleFavoriteToggle}
+        showNoUrlsText={true}
+        handleFavorite={handleFavorite}
         handleDelete={handleDeleteUrl} />
     </div>
   );

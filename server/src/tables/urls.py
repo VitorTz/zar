@@ -6,6 +6,7 @@ from src.security import hash_password
 from fastapi.exceptions import HTTPException
 from fastapi import status
 from typing import Optional
+import json
 import asyncpg
 
 
@@ -48,10 +49,52 @@ async def get_url(short_code: str, base_url: str, conn: Connection) -> dict | No
 
 async def get_url_stats(short_code: str, conn: Connection) -> dict | None:
     r = await conn.fetchrow(
-        "SELECT * FROM vw_url_stats WHERE short_code = $1", 
+        """
+        SELECT 
+            short_code,
+            total_clicks,
+            unique_visitors,
+            TO_CHAR(first_click, 'DD-MM-YYYY HH24:MI:SS') AS first_click,
+            TO_CHAR(last_click, 'DD-MM-YYYY HH24:MI:SS') AS last_click,
+            timeline,
+            devices,
+            browsers,
+            top_countries,
+            top_cities,
+            operating_systems,
+            top_referers
+        FROM 
+            vw_url_stats 
+        WHERE 
+            short_code = $1
+        """,
         short_code
     )
-    return dict(r) if r else None
+
+    if not r:
+        return None
+
+    data = dict(r)
+    
+    json_fields = [
+        "timeline",
+        "devices",
+        "browsers",
+        "top_countries",
+        "top_cities",
+        "operating_systems",
+        "top_referers",
+    ]
+
+    for f in json_fields:
+        v = data.get(f)
+        if isinstance(v, str):
+            try:
+                data[f] = json.loads(v)
+            except json.JSONDecodeError:
+                data[f] = None
+
+    return data
 
 
 async def get_url_pages(base_url: str, limit: int, offset: int, conn: Connection) -> tuple[int, list[dict]]:
@@ -192,7 +235,7 @@ async def create_user_url(url: URLCreate, user: User, base_url: str, conn: Conne
                     INSERT INTO urls (
                         short_code,
                         user_id,
-                        p_hash
+                        p_hash,
                         original_url,
                         expires_at,
                         is_favorite
@@ -232,20 +275,20 @@ async def update_clicks(short_code: str, conn: Connection):
 
 
 async def get_user_urls(user_id: str, limit: int, offset: int, base_url: str, conn: Connection) -> tuple[int, list[dict]]:
-    total: int = await conn.fetchval("SELECT COUNT(*) AS total FROM user_urls WHERE user_id = $1", user_id)    
+    total: int = await conn.fetchval("SELECT COUNT(*) AS total FROM urls WHERE user_id = $1", user_id)
 
     r = await conn.fetch(
         """
             SELECT
                 user_id::text,
-                original_url,
-                ($1 || '/' || short_code) AS short_url,
-                short_code,
-                clicks,
-                qrcode_url,
-                is_favorite,
-                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
-                TO_CHAR(expires_at, 'DD-MM-YYYY HH24:MI:SS') as expires_at
+                urls.original_url,
+                ($1 || '/' || urls.short_code) AS short_url,
+                urls.short_code,
+                urls.clicks,
+                urls.qrcode_url,
+                urls.is_favorite,
+                TO_CHAR(urls.created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
+                TO_CHAR(urls.expires_at, 'DD-MM-YYYY HH24:MI:SS') as expires_at
             FROM
                 urls
             JOIN
@@ -253,7 +296,7 @@ async def get_user_urls(user_id: str, limit: int, offset: int, base_url: str, co
             WHERE
                 users.id = $2
             ORDER BY
-                urls.is_favorite DESC, 
+                urls.is_favorite DESC,
                 urls.created_at DESC
             LIMIT
                 $3
