@@ -1,6 +1,6 @@
 from asyncpg import Connection
-from typing import Literal, Optional
-from datetime import datetime, timedelta
+from typing import Literal
+import json
 
 
 async def log_error(
@@ -10,6 +10,7 @@ async def log_error(
     method: str,
     status_code: int,
     stacktrace: str,
+    metadata: dict,
     conn: Connection = None
 ):
     try:
@@ -22,17 +23,19 @@ async def log_error(
                     path, 
                     method, 
                     status_code, 
-                    stacktrace
+                    stacktrace,
+                    metadata
                 )
                 VALUES 
-                    ($1, $2, $3, $4, $5, $6);
+                    ($1, $2, $3, $4, $5, $6, $7)
                 """,
                 error_level,
                 message,
                 path,
                 method,
                 status_code,
-                stacktrace
+                stacktrace,
+                json.dumps(metadata)
             )
         else:
             print(
@@ -49,7 +52,7 @@ async def log_error(
 
 
 async def create_log(
-    level: Literal['INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+    level: Literal['INFO', 'WARN', 'ERROR', 'FATAL', 'DEBUG'],
     message: str,
     path: str | None,
     method: Literal['POST', 'PUT', 'GET', 'DELETE'],
@@ -68,7 +71,7 @@ async def create_log(
                 stacktrace
             )
             VALUES
-                ($1, $2, $3, $4, $5, $6);
+                ($1, $2, $3, $4, $5, $6)
         """,
         level,
         message,
@@ -80,52 +83,35 @@ async def create_log(
     
 
 async def get_logs(
-    method: str | None,
-    sort_by: str,
-    sort_order: str,
     limit: int,
     offset: int,
     conn: Connection
 ) ->  tuple[int, list[dict]]:
-    where_clause: list[str] = []
-    params: list[str] = []
+    total: int = await conn.fetchval("SELECT COUNT(*) AS total FROM logs")
 
-    if method is not None:
-        where_clause.append("method = $1")
-        params.append(method)
-
-    
-    if params:
-        where_clause = "WHERE " + " AND ".join(where_clause)
-        r = await conn.fetchrow(f"SELECT count(*) as total FROM logs {where_clause};", *params)
-        total = dict(r)['total']
-    else:
-        where_clause = ''
-        r = await conn.fetchrow(f"SELECT count(*) as total FROM logs;")
-        total = dict(r)['total']
-
-    params.extend([limit, offset])
     r = await conn.fetch(
         f"""
             SELECT 
-                log_id,
+                id,
                 level,
                 message,
                 path,
                 method,
                 status_code,
+                user_id,
                 stacktrace,
+                metadata,
                 to_char(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at
             FROM 
                 logs
-            {where_clause}
             ORDER BY 
-                {sort_by} {sort_order}
-            LIMIT ${len(params) - 1}
-            OFFSET ${len(params)}
+                created_at DESC
+            LIMIT $1
+            OFFSET $2
         """,
-        *params
-    )
+        limit,
+        offset
+    )    
 
     return total, [dict(i) for i in r]
 
@@ -134,118 +120,23 @@ async def delete_logs(
     interval_minutes: int | None,
     conn: Connection
 ) -> int:
-    r = await conn.fetchrow("SELECT count(*) as total FROM logs;")
-    t1 = dict(r)['total']
+    t1: int = await conn.fetchval("SELECT count(*) as total FROM logs")
+
     if interval_minutes is None:
-        await conn.execute("DELETE FROM logs;")
+        await conn.execute("DELETE FROM logs")
     else:
         await conn.execute(
             f"""
                 DELETE FROM 
                     logs
                 WHERE
-                    created_at < NOW() - INTERVAL '{interval_minutes} minutes';
+                    created_at < NOW() - INTERVAL '{interval_minutes} minutes'
             """
         )
-    r = await conn.fetchrow("SELECT count(*) as total FROM logs;")
-    t2 = dict(r)['total']
+    t2: int = await conn.fetchval("SELECT count(*) as total FROM logs")
+
     return t1 - t2
         
-
-async def get_filtered_logs(
-    limit: int,
-    offset: int,
-    level: Optional[str],
-    method: Optional[str],
-    status_group: Optional[str],
-    search: Optional[str],
-    date_from: Optional[str],
-    date_to: Optional[str],
-    conn: Connection
-) -> tuple[int, list[dict]]:
-    where_clauses = []
-    params = []
-    param_count = 1
-    
-    if level:
-        where_clauses.append(f"level = ${param_count}")
-        params.append(level.upper())
-        param_count += 1
-    
-    if method:
-        where_clauses.append(f"method = ${param_count}")
-        params.append(method.upper())
-        param_count += 1
-    
-    if status_group:
-        if status_group == '2xx':
-            where_clauses.append(f"status_code >= 200 AND status_code < 300")
-        elif status_group == '3xx':
-            where_clauses.append(f"status_code >= 300 AND status_code < 400")
-        elif status_group == '4xx':
-            where_clauses.append(f"status_code >= 400 AND status_code < 500")
-        elif status_group == '5xx':
-            where_clauses.append(f"status_code >= 500 AND status_code < 600")
-    
-    if search:
-        where_clauses.append(f"message ILIKE ${param_count}")
-        params.append(f"%{search}%")
-        param_count += 1
-    
-    if date_from:
-        try:
-            dt = datetime.strptime(date_from, '%d-%m-%Y')
-            where_clauses.append(f"created_at >= ${param_count}")
-            params.append(dt)
-            param_count += 1
-        except ValueError:
-            pass
-    
-    if date_to:
-        try:
-            dt = datetime.strptime(date_to, '%d-%m-%Y') + timedelta(days=1)
-            where_clauses.append(f"created_at < ${param_count}")
-            params.append(dt)
-            param_count += 1
-        except ValueError:
-            pass
-    
-    where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
-    
-    # Query de contagem
-    count_query = f"SELECT COUNT(*) as total FROM logs WHERE {where_sql}"
-    r = await conn.fetchrow(count_query, *params)
-    total = dict(r)['total']
-    
-    # Query de dados
-    params.append(limit)
-    params.append(offset)
-    data_query = f"""
-        SELECT
-            log_id,
-            level,
-            message,
-            path,
-            method,
-            status_code,
-            stacktrace,
-            to_char(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at
-        FROM 
-            logs
-        WHERE 
-            {where_sql}
-        ORDER BY 
-            log_id DESC
-        LIMIT 
-            ${param_count}
-        OFFSET 
-            ${param_count + 1}
-    """
-    
-    r = await conn.fetch(data_query, *params)
-    
-    return total, [dict(i) for i in r]
-
 
 async def get_log_stats(conn: Connection) -> dict:
     # Estatísticas por nível
@@ -295,7 +186,7 @@ async def get_log_stats(conn: Connection) -> dict:
         FROM logs
         WHERE created_at >= NOW() - INTERVAL '7 days'
         GROUP BY date
-        ORDER BY date DESC;
+        ORDER BY date DESC
     """)
     
     # Logs por hora (últimas 24 horas)
@@ -307,7 +198,7 @@ async def get_log_stats(conn: Connection) -> dict:
             logs
         WHERE created_at >= NOW() - INTERVAL '24 hours'
         GROUP BY hour
-        ORDER BY hour DESC;
+        ORDER BY hour DESC
     """)
     
     # Top 10 endpoints com mais erros
@@ -332,3 +223,153 @@ async def get_log_stats(conn: Connection) -> dict:
         "by_hour": [dict(row) for row in hourly_stats],
         "error_endpoints": [dict(row) for row in error_endpoints]
     }
+
+
+async def get_rate_limit_violations(
+    hours: int,
+    min_attempts: int,
+    limit: int,
+    offset: int,
+    conn: Connection,
+    ip_address: str | None = None,
+) -> tuple[int, list[dict]]:
+    if ip_address:
+        r = await conn.fetch(
+            f"""
+                WITH filtered AS (
+                    SELECT
+                        ip_address,
+                        path,
+                        method,
+                        attempts,
+                        created_at,
+                        last_attempt_at
+                    FROM 
+                        rate_limit_logs
+                    WHERE 
+                        ip_address = $1 AND
+                        last_attempt_at > NOW() - ($2 || ' hours')::interval
+                )
+                SELECT
+                    ip_address,
+                    path,
+                    method,
+                    SUM(attempts) AS total_attempts,
+                    COUNT(*) AS violation_count,
+                    TO_CHAR(MIN(created_at), 'DD-MM-YYYY HH24:MI:SS') AS first_violation,
+                    TO_CHAR(MAX(last_attempt_at), 'DD-MM-YYYY HH24:MI:SS') AS last_violation,
+                    COUNT(*) OVER() AS total_matching_records
+                FROM 
+                    filtered
+                GROUP BY 
+                    ip_address, path, method
+                HAVING 
+                    SUM(attempts) >= $3
+                ORDER BY 
+                    total_attempts DESC
+                LIMIT $4
+                OFFSET $5
+            """,
+            ip_address,
+            str(hours),
+            min_attempts,
+            limit,
+            offset
+        )
+    else:
+        r = await conn.fetch(
+            """
+                WITH filtered AS (
+                    SELECT
+                        ip_address,
+                        path,
+                        method,
+                        attempts,
+                        created_at,
+                        last_attempt_at
+                    FROM 
+                        rate_limit_logs
+                    WHERE 
+                        last_attempt_at > NOW() - ($1 || ' hours')::interval
+                )
+                SELECT
+                    ip_address,
+                    path,
+                    method,
+                    SUM(attempts) AS total_attempts,
+                    COUNT(*) AS violation_count,
+                    TO_CHAR(MIN(created_at), 'DD-MM-YYYY HH24:MI:SS') AS first_violation,
+                    TO_CHAR(MAX(last_attempt_at), 'DD-MM-YYYY HH24:MI:SS') AS last_violation,
+                    COUNT(*) OVER() AS total_matching_records
+                FROM filtered
+                GROUP BY ip_address, path, method
+                HAVING SUM(attempts) >= $2
+                ORDER BY total_attempts DESC
+                LIMIT $3
+                OFFSET $4;
+            """,
+            str(hours),
+            min_attempts,
+            limit,
+            offset
+        )
+
+    results = [dict(r) for r in r]
+    total = results[0]['total_matching_records'] if results else 0
+    for row in results:
+        row.pop('total_matching_records', None)        
+    
+    return total, results
+
+
+async def delete_old_rate_limit_logs(hours: int, conn: Connection) -> int:
+    t1: int = await conn.fetchval("SELECT COUNT(*) AS total FROM rate_limit_logs")
+    
+    await conn.execute(
+        """
+            DELETE FROM
+                rate_limit_logs                
+            WHERE
+                last_attempt_at > NOW() - ($1 || ' hours')::interval
+        """,
+        str(hours)
+    )
+
+    t2: int = await conn.fetchval("SELECT COUNT(*) AS total FROM rate_limit_logs")
+
+    return t1 - t2
+
+
+
+async def create_rate_limit_log(
+    ip_address: str,
+    path: str,
+    method: str,
+    attempts: str,
+    window_start,    
+    conn: Connection
+):
+    await conn.execute(
+        """
+        INSERT INTO rate_limit_logs (
+            ip_address, 
+            path, 
+            method, 
+            attempts, 
+            window_start,
+            last_attempt_at
+        )
+        VALUES 
+            ($1, $2, $3, $4, $5, NOW())
+        ON CONFLICT 
+            (ip_address, path, method, window_start)
+        DO UPDATE SET
+            attempts = rate_limit_logs.attempts + 1,
+            last_attempt_at = NOW()
+        """,
+        ip_address,
+        path,
+        method,
+        attempts,
+        window_start
+    )

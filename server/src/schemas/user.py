@@ -10,7 +10,6 @@ class User(BaseModel):
     last_login_at: Optional[str] = None
     is_active: bool
     is_verified: bool
-    last_login_at: str
     updated_at: str
     created_at: str
 

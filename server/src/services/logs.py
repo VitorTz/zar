@@ -7,12 +7,13 @@ from asyncpg import Connection
 from datetime import datetime, timezone, timedelta
 from src.constants import Constants
 import traceback
+from typing import Literal
 
 
 async def log_and_build_response(
     request: Request,
     exc: Exception,
-    error_level: str,
+    error_level: Literal['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'],
     status_code: int,
     detail: dict | str
 ) -> JSONResponse:
@@ -79,6 +80,7 @@ async def log_and_build_response(
         content={
             "detail": str(detail),
             "path": str(request.url.path),
+            "status_code": status_code,
             "timestamp": str(datetime.now())
         }
     )
@@ -102,29 +104,13 @@ async def log_rate_limit_violation(
         window_start = datetime.now(timezone.utc) - timedelta(seconds=Constants.WINDOW - ttl)        
         ip_address = identifier.split(":")[-1] if ":" in identifier else identifier
         
-        await conn.execute(
-            """
-            INSERT INTO rate_limit_logs (
-                ip_address, 
-                path, 
-                method, 
-                attempts, 
-                window_start,
-                last_attempt_at
-            )
-            VALUES 
-                ($1, $2, $3, $4, $5, NOW())
-            ON CONFLICT 
-                (ip_address, path, method, window_start)
-            DO UPDATE SET
-                attempts = rate_limit_logs.attempts + 1,
-                last_attempt_at = NOW()
-            """,
+        await logs_table.create_rate_limit_log(
             ip_address,
             str(request.url.path),
             request.method,
             attempts,
-            window_start
+            window_start,
+            conn
         )
         
     except Exception as e:
@@ -153,11 +139,7 @@ async def get_logs(method: str | None, sort_by: str, sort_order: str, limit: int
 
 async def delete_logs(interval_minutes: int | None, conn: Connection) -> Response:
     deleted_logs = await logs_table.delete_logs(interval_minutes, conn)
-    return JSONResponse(
-        content={
-            "deleted": deleted_logs
-        }
-    )
+    return JSONResponse({"deleted": deleted_logs})
 
 
 async def log_stats(conn: Connection) -> JSONResponse:
@@ -165,90 +147,25 @@ async def log_stats(conn: Connection) -> JSONResponse:
 
 
 async def get_rate_limit_violations(
-    ip_address: str = None,
-    hours: int = 24,
-    min_attempts: int = 10
+    hours: int,
+    min_attempts: int,
+    limit: int,
+    offset: int,
+    conn: Connection,
+    ip_address: str = None
 ) -> list[dict]:    
-    conn = None
-    try:
-        pool = get_db_pool()
-        if pool is None:
-            return []
-        
-        conn = await pool.acquire()
-        
-        query = """
-        SELECT 
-            ip_address,
-            path,
-            method,
-            SUM(attempts) as total_attempts,
-            COUNT(*) as violation_count,
-            MIN(created_at) as first_violation,
-            MAX(last_attempt_at) as last_violation
-        FROM rate_limit_logs
-        WHERE last_attempt_at > NOW() - INTERVAL '%s hours'
-        """
-        
-        params = [hours]
-        
-        if ip_address:
-            query += " AND ip_address = $2"
-            params.append(ip_address)
-        
-        query += """
-        GROUP BY ip_address, path, method
-        HAVING SUM(attempts) >= $%d
-        ORDER BY total_attempts DESC
-        LIMIT 100
-        """ % (len(params) + 1)
-        
-        params.append(min_attempts)
-        
-        rows = await conn.fetch(query, *params)
-        
-        return [dict(row) for row in rows]
-        
-    except Exception as e:
-        print(f"[ERROR] Failed to get rate limit violations: {e}")
-        return []
-    finally:
-        if conn is not None:
-            try:
-                await pool.release(conn)
-            except Exception as e:
-                print(f"[ERROR] Failed to release DB connection: {e}")
+    total, results = await logs_table.get_rate_limit_violations(hours, min_attempts, limit, offset, conn, ip_address)
+    response = {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "page": (offset // limit) + 1,
+        "pages": (total + limit - 1) // limit,
+        "results": results
+    }
+    return JSONResponse(content=response)
 
 
-async def cleanup_old_rate_limit_logs(days_to_keep: int = 30) -> int:
-    conn = None
-    try:
-        pool = get_db_pool()
-        if pool is None:
-            return 0
-        
-        conn = await pool.acquire()
-        
-        result = await conn.execute(
-            """
-            DELETE FROM rate_limit_logs
-            WHERE last_attempt_at < NOW() - INTERVAL '%s days'
-            """,
-            days_to_keep
-        )
-        
-        # Parse "DELETE X" response
-        deleted_count = int(result.split()[-1]) if result else 0
-        
-        print(f"[INFO] Cleaned up {deleted_count} old rate limit logs")
-        return deleted_count
-        
-    except Exception as e:
-        print(f"[ERROR] Failed to cleanup rate limit logs: {e}")
-        return 0
-    finally:
-        if conn is not None:
-            try:
-                await pool.release(conn)
-            except Exception as e:
-                print(f"[ERROR] Failed to release DB connection: {e}")
+async def cleanup_old_rate_limit_logs(hours: int, conn: Connection) -> int:
+    total: int = await logs_table.delete_old_rate_limit_logs(hours, conn)
+    return JSONResponse({"deleted": total})

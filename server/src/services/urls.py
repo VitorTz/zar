@@ -4,6 +4,7 @@ from fastapi import Request, status
 from asyncpg import Connection
 from src.schemas.urls import URLResponse, URLCreate
 from src.schemas.user import User
+from src.services import url_blacklist as url_blacklis_service
 from src.tables import urls as urls_table
 from src.globals import Globals
 from user_agents import parse
@@ -24,30 +25,31 @@ async def get_urls(request: Request, limit: int, offset: int, conn: Connection):
     return response
 
 
-async def shorten(url: URLCreate, request: Request, conn: Connection, user: User | None = None):
+async def shorten(url: URLCreate, request: Request, conn: Connection, user: User | None = None):    
     base_url: str = util.extract_base_url(request)
     original_url = str(url.url)
 
-    if not await util.is_url_safe(original_url):
+    if not await url_blacklis_service.is_valid_url(original_url, conn):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL maliciosa detectada pela Google Safe Browsing API.")
     
     if not user:
-        url_response: URLResponse | None = await urls_table.get_anonymous_url(original_url, base_url, conn)
+        url_response: dict | None = await urls_table.get_anonymous_url(original_url, base_url, conn)
     else:
-        url_response: URLResponse | None = await urls_table.get_user_url(original_url, base_url, user.id, conn)
-
+        url_response: dict | None = await urls_table.get_user_url(original_url, base_url, user.id, conn)
+    
     is_new_url = url_response is None
 
     if is_new_url and user is None:
-        url_response: URLResponse = await urls_table.create_anonymous_url(url_response, base_url, conn)
+        url_response: dict = await urls_table.create_anonymous_url(url, base_url, conn)
     elif is_new_url and user is not None:
-        url_response: URLResponse = await urls_table.create_user_url(url, user, base_url, conn)
-
+        url_response: dict = await urls_table.create_user_url(url, user, base_url, conn)
+    
     if is_new_url:
-        qrcode_url: str = await util.create_qrcode(url_response.short_url)
-        await urls_table.set_url_qrcode(url_response.short_code, qrcode_url, conn)
+        qrcode_url: str = await util.create_qrcode(url_response['short_url'])
+        await urls_table.set_url_qrcode(url_response['short_code'], qrcode_url, conn)
+        url_response['qrcode_url'] = qrcode_url
 
-    return JSONResponse(url_response.model_dump())
+    return JSONResponse(url_response)
 
 
 async def register_click_event(short_code: str, request: Request, conn: Connection):    

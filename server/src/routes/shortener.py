@@ -16,7 +16,7 @@ async def shorten_url(
     request: Request, 
     user: User | None = Depends(get_user_from_token_if_exists),
     conn: Connection = Depends(get_db)
-):
+):    
     return await url_service.shorten(url, request, conn, user)
 
 

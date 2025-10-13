@@ -167,6 +167,7 @@ CREATE INDEX IF NOT EXISTS idx_login_attempts_locked ON user_login_attempts(lock
 ------------------------------------------------
 ----                 [URLS]                 ----
 ------------------------------------------------
+
 CREATE TABLE IF NOT EXISTS urls (    
     short_code TEXT PRIMARY KEY,
     user_id UUID,
@@ -184,7 +185,7 @@ CREATE TABLE IF NOT EXISTS urls (
     custom_alias BOOLEAN DEFAULT FALSE NOT NULL,
     CONSTRAINT fk_urls_user FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT chk_short_code_format CHECK (short_code ~ '^[a-zA-Z0-9_-]{3,12}$'),
-    CONSTRAINT chk_original_url_format CHECK (original_url ~ '^https?://'),
+    CONSTRAINT chk_original_url CHECK (original_url ~ '^(https?://)([A-Za-z0-9-]+\.)+[A-Za-z]{2,}(/.*)?$'),
     CONSTRAINT chk_expires_after_created CHECK (expires_at IS NULL OR expires_at > created_at),
     CONSTRAINT chk_clicks_non_negative CHECK (clicks >= 0)
 );
@@ -194,6 +195,17 @@ CREATE INDEX IF NOT EXISTS idx_urls_created_at ON urls(created_at DESC) WHERE is
 CREATE INDEX IF NOT EXISTS idx_urls_expires_at ON urls(expires_at) WHERE expires_at IS NOT NULL AND is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_urls_clicks ON urls(clicks DESC) WHERE is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_urls_original_url_hash ON urls USING hash(original_url);
+
+------------------------------------------------
+----                 [URLS]                 ----
+------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS url_blacklist (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    url TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT url_blacklist_unique_cstr UNIQUE (url)
+);
 
 ------------------------------------------------
 ----               [URL TAGS]               ----
@@ -554,7 +566,7 @@ SELECT
     (SELECT COUNT(*) FROM url_analytics WHERE clicked_at > NOW() - INTERVAL '7 days') as clicks_last_7d,
     (SELECT COUNT(*) FROM urls WHERE created_at > NOW() - INTERVAL '7 days' AND is_active = TRUE) as urls_created_last_week,
     (SELECT COUNT(DISTINCT user_id) FROM user_session_tokens WHERE last_used_at > NOW() - INTERVAL '24 hours' AND revoked = FALSE) as active_users_24h,
-    NOW() as last_updated;
+    TO_CHAR(NOW(), 'DD-MM-YYYY HH24:MI:SS') as last_updated;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_dashboard_stats ON mv_dashboard_stats(last_updated);
 

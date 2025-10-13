@@ -34,10 +34,10 @@ async def assign_url_to_user(user: User, url: UrlShortCode, conn: Connection):
 
 
 async def set_user_favorite_url(user: User, url: CreateFavoriteURL, base_url: str, conn: Connection):
-    url_response: URLResponse | None = await urls_table.get_url(url.short_code, base_url, conn)
+    url_response: dict | None = await urls_table.get_url(url.short_code, base_url, conn)
     if url_response is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Url não encontrada!')
     
     await users_table.set_user_favorite_url(user.id, url.short_code, url.is_favorite, conn)    
 
-    return JSONResponse(url_response.model_dump())
+    return JSONResponse(url_response)

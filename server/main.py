@@ -78,7 +78,7 @@ async def lifespan(app: FastAPI):
 
 
 
-app = FastAPI(
+app = FastAPI(    
     title=os.getenv("API_NAME"), 
     description=os.getenv("API_DESCR"),
     version=os.getenv("API_VERSION"),
@@ -116,8 +116,8 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
 @app.get("/")
-def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+def read_root():
+    return { "status": "ok" }
 
 
 @app.get("/favicon.ico")
@@ -209,7 +209,7 @@ async def http_middleware(request: Request, call_next):
     
     # System Monitor
     monitor.increment_request(response_time_ms)
-    
+
     return response
 
 
@@ -218,7 +218,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     return await log_service.log_and_build_response(
         request=request,
         exc=exc,
-        error_level="WARNING" if exc.status_code < 500 else "ERROR",
+        error_level="WARN" if exc.status_code < 500 else "ERROR",
         status_code=exc.status_code,
         detail=exc.detail
     )
@@ -229,7 +229,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     return await log_service.log_and_build_response(
         request=request,
         exc=exc,
-        error_level="WARNING",
+        error_level="WARN",
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         detail={
             "message": "Validation error",
@@ -240,12 +240,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    if request.url.path.startswith(("/openapi.json", "/docs", "/redoc")):
-        raise exc
     return await log_service.log_and_build_response(
         request=request,
         exc=exc,
-        error_level="CRITICAL",
+        error_level="FATAL",
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail="Internal server error"
     )

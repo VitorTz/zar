@@ -34,7 +34,7 @@ class URLResponse(BaseModel):
     short_url: str
     short_code: str
     clicks: int
-    qr_code_url: str    
+    qrcode_url: str
     is_favorite: bool = False
     created_at: Optional[str] = None
     expires_at: Optional[str] = None

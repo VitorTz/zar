@@ -1,34 +1,15 @@
 from asyncpg import Connection
+from fastapi import status
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import HTTPException
 from src.schemas.user import User
+from src.tables import dashboard
+from src.tables import users as users_table
+from src import util
 
 
 async def get_urls_ordered_by_popularity(limit: int, offset: int, conn: Connection):
-    r = await conn.fetchrow("SELECT COUNT(*) AS total FROM v_popular_urls;")
-    total = dict(r)['total']
-
-    r = await conn.fetch(
-        """
-            SELECT
-                short_code,
-                original_url,
-                title,
-                clicks,
-                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
-                TO_CHAR(last_clicked_at, 'DD-MM-YYYY HH24:MI:SS') as last_clicked_at,
-                unique_visitors,
-                countries_reached
-            FROM
-                v_popular_urls
-            LIMIT
-                $1
-            OFFSET
-                $2;
-        """,
-        limit,
-        offset
-    )
-    results = [dict(i) for i in r]
+    total, results = await dashboard.get_urls_ordered_by_popularity(limit, offset, conn)
     response = {
         "total": total,
         "limit": limit,
@@ -42,11 +23,7 @@ async def get_urls_ordered_by_popularity(limit: int, offset: int, conn: Connecti
 
 
 async def get_daily_metrics(limit: int, offset: int, conn: Connection):
-    r = await conn.fetchrow("SELECT COUNT(*) AS total FROM v_daily_analytics;")
-    total = dict(r)['total']
-
-    r = await conn.fetch("SELECT * FROM v_daily_analytics LIMIT $1 OFFSET $2;", limit, offset)
-    results = [dict(i) for i in r]
+    total, results = await dashboard.get_daily_metrics(limit, offset, conn)
     response = {
         "total": total,
         "limit": limit,
@@ -55,24 +32,18 @@ async def get_daily_metrics(limit: int, offset: int, conn: Connection):
         "pages": (total + limit - 1) // limit,
         "results": results
     }
-
+    
+    util.print_dict(response)
     return JSONResponse(response)
 
 
 async def get_dashboard_metrics(conn: Connection) -> JSONResponse:
-    await conn.execute("SELECT * FROM refresh_dashboard_stats();")
-    r = await conn.fetchrow(
-        """
-            SELECT
-                *
-            FROM
-                mv_dashboard_stats;
-        """
-    )
-    result = dict(r)
-    return JSONResponse(result)
+    data: dict = await dashboard.get_dashboard_data(conn)
+    return JSONResponse(data)
 
 
 async def get_user_stats(user: User, conn: Connection):
-    r = await conn.fetchrow("SELECT * FROM v_user_stats WHERE id = $1;", user.id)
-    return dict(r) if r is not None else None
+    data: dict | None = await users_table.get_user_stats(user.id, conn)
+    if data is None:
+        raise HTTPException(detail="User not found", status_code=status.HTTP_404_NOT_FOUND)
+    return JSONResponse(data)

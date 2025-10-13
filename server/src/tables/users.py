@@ -19,7 +19,7 @@ async def get_user(user_id: str | UUID, conn: Connection) -> User | None:
             FROM
                 users
             WHERE
-                id = $1;
+                id = $1
         """,
         user_id
     )
@@ -28,8 +28,7 @@ async def get_user(user_id: str | UUID, conn: Connection) -> User | None:
 
 
 async def get_users(limit: int, offset: int, conn: Connection) -> tuple[int, list[dict]]:
-    r = await conn.fetchrow("SELECT COUNT(*) AS total FROM users;")
-    total = dict(r)['total']
+    total: int = await conn.fetchval("SELECT COUNT(*) AS total FROM users")
     
     r = await conn.fetch(
         """
@@ -46,7 +45,7 @@ async def get_users(limit: int, offset: int, conn: Connection) -> tuple[int, lis
             LIMIT 
                 $1
             OFFSET
-                $2;
+                $2
         """,
         limit,
         offset
@@ -71,7 +70,7 @@ async def get_user_by_refresh_token(refresh_token: str, conn: Connection) -> Use
             JOIN
                 user_session_tokens rt ON rt.user_id = u.id
             WHERE
-                rt.refresh_token = $1;
+                rt.refresh_token = $1
         """,
         refresh_token
     )
@@ -90,13 +89,12 @@ async def update_user_session_token(user_id: str, refresh_token: str, expires_at
                 last_used_at = NOW()
             WHERE
                 user_id = $2 AND
-                refresh_token = $3;
+                refresh_token = $3
         """,
         expires_at,
         user_id,
         refresh_token
     )
-
 
 
 async def get_user_login_data(email: str, conn: Connection) -> UserLoginData:
@@ -114,7 +112,7 @@ async def get_user_login_data(email: str, conn: Connection) -> UserLoginData:
             JOIN
                 user_login_attempts ul ON ul.user_id = u.id
             WHERE
-                email = $1;
+                email = $1
         """,
         email.lower().strip()
     )
@@ -138,7 +136,7 @@ async def create_user(email: str, p_hash: bytes, conn: Connection) -> User:
                 is_verified,
                 TO_CHAR(last_login_at, 'DD-MM-YYYY HH24:MI:SS') as last_login_at,
                 TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
-                TO_CHAR(updated_at, 'DD-MM-YYYY HH24:MI:SS') as updated_at;
+                TO_CHAR(updated_at, 'DD-MM-YYYY HH24:MI:SS') as updated_at
         """,
         email,
         p_hash
@@ -148,7 +146,7 @@ async def create_user(email: str, p_hash: bytes, conn: Connection) -> User:
 
 
 async def user_email_exists(email: str, conn: Connection) -> bool:
-    r = await conn.fetchrow("SELECT id FROM users WHERE email = $1;", email.lower().strip())
+    r = await conn.fetchrow("SELECT id FROM users WHERE email = LOWER(TRIM($1))", email)
     return r is not None
 
 
@@ -170,7 +168,7 @@ async def update_user_login_attempts(
                     locked_until = $3,
                     last_successful_login = NOW()
                 WHERE
-                    user_id = $4;
+                    user_id = $4
             """,
             failed_login_attempts, 
             last_failed_login, 
@@ -188,7 +186,7 @@ async def update_user_login_attempts(
                 last_failed_login = $2,
                 locked_until = $3                
             WHERE
-                user_id = $4;
+                user_id = $4
         """,
         failed_login_attempts, 
         last_failed_login, 
@@ -224,7 +222,7 @@ async def create_user_session_token(
                 refresh_token = EXCLUDED.refresh_token,
                 expires_at = EXCLUDED.expires_at,
                 device_name = EXCLUDED.device_name,
-                last_used_at = NOW();
+                last_used_at = NOW()
         """,
         user_id, 
         refresh_token, 
@@ -236,10 +234,12 @@ async def create_user_session_token(
 
 
 async def get_user_sessions(user_id: str | UUID, limit: int, offset: int, conn: Connection) -> tuple[int, list[dict]]:
-    r = await conn.fetchrow("SELECT COUNT(*) AS total FROM user_session_tokens WHERE user_id = $1;", user_id)
-    total: int = dict(r)['total']
+    total: int = await conn.fetchval(
+        "SELECT COUNT(*) AS total FROM user_session_tokens WHERE user_id = $1", 
+        user_id
+    )
 
-    await conn.fetch(
+    r = await conn.fetch(
         """
             SELECT
                 user_id::text
@@ -260,7 +260,7 @@ async def get_user_sessions(user_id: str | UUID, limit: int, offset: int, conn: 
             LIMIT
                 $2
             OFFSET
-                $3;
+                $3
         """,
         user_id,
         limit,
@@ -276,7 +276,7 @@ async def delete_user_session_token(refresh_token: str, conn: Connection):
             DELETE FROM 
                 user_session_tokens
             WHERE
-                refresh_token = $1;
+                refresh_token = $1
         """,        
         refresh_token
     )
@@ -296,11 +296,11 @@ async def delete_all_user_session_tokens(user_id: str, conn: Connection):
 
 
 async def delete_user(user_id: str | UUID, conn: Connection):
-    await conn.execute("DELETE FROM users WHERE id = $1;", user_id)
+    await conn.execute("DELETE FROM users WHERE id = $1", user_id)
 
 
 async def delete_all_users(conn: Connection):
-    await conn.execute("DELETE FROM users;")
+    await conn.execute("DELETE FROM users")
 
 
 async def update_user_last_login_at(user_id: str, conn: Connection):
@@ -311,7 +311,7 @@ async def update_user_last_login_at(user_id: str, conn: Connection):
             SET
                 last_login_at = NOW()
             WHERE
-                id = $1;
+                id = $1
         """,
         user_id
     )
@@ -323,7 +323,7 @@ async def delete_user_url(user_id: str, url_id: str, conn: Connection):
                 user_urls
             WHERE
                 user_id = $1 AND
-                url_id = $2;
+                url_id = $2
         """,
         user_id,
         url_id
@@ -342,7 +342,7 @@ async def assign_url_to_user(url: URLResponse, user_id: str, conn: Connection):
                     is_favorite = FALSE,
                     expires_at = NULL
                 WHERE
-                    short_code = $2;
+                    short_code = $2
             """,
             user_id,
             url.short_code
@@ -358,9 +358,13 @@ async def set_user_favorite_url(user_id: str, short_code: str, state: bool, conn
                 is_favorite = $1
             WHERE
                 user_id = $2 AND
-                short_code = $3;
+                short_code = $3
         """,
         state,
         user_id,
         short_code
     )
+
+async def get_user_stats(user_id: str, conn: Connection) -> dict | None:
+    r = await conn.fetchrow("SELECT * FROM v_user_stats WHERE id = $1;", user_id)
+    return dict(r) if r else None

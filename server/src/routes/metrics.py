@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, Query
 from src.schemas.metrics import DashboardStats, UrlAnalyticPagination, UserStats
 from src.schemas.user import User
 from src.schemas.urls import UrlPopularPagination
 from src.services import metrics as metrics_service
 from src.security import get_user_from_token
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 from asyncpg import Connection
+from src.services import perf
 from src.db import get_db
 
 
