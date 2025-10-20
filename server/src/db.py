@@ -1,6 +1,11 @@
 from asyncpg import create_pool, Pool, Connection
 from src.migrate import db_migrate
+from dotenv import load_dotenv
+import psycopg
 import os
+
+
+load_dotenv()
 
 
 db_pool: Pool = None
@@ -11,6 +16,11 @@ async def db_init() -> None:
     db_pool = await create_pool(os.getenv("DATABASE_URL"), min_size=5, max_size=20)
     async with db_pool.acquire() as conn:
         await db_migrate(conn)
+
+
+def db_instance() -> psycopg.Connection:
+    conn = psycopg.connect(os.getenv("DATABASE_URL"))
+    return conn
 
 
 def get_db_pool() -> Pool:

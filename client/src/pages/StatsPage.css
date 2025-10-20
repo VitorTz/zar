@@ -1,4 +1,4 @@
-/* src/pages/StatsPage.css */
+
 
 .stats-container {
   max-width: 1200px;
@@ -11,7 +11,7 @@
   color: var(--text-primary-color);
 }
 
-/* Grid para os cartões de destaque */
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -52,19 +52,19 @@
   border-radius: 12px;
   border: 1px solid var(--border-color);
   margin-bottom: 3rem;
-  overflow-x: auto; /* Evita quebra horizontal */
+  overflow-x: auto;
 }
 
-/* Mantém o gráfico proporcional em telas pequenas */
+
 .stats-section .recharts-responsive-container {
   width: 100% !important;
-  min-width: 350px; /* garante espaço mínimo de renderização */
+  min-width: 350px;
 }
 
-/* Estilos da tabela */
+
 .table-container {
   width: 100%;
-  overflow-x: auto; /* Permite rolagem horizontal em telas pequenas */
+  overflow-x: auto;
 }
 
 table {
@@ -90,13 +90,13 @@ td a {
 }
 
 .original-url-cell {
-  max-width: 300px; /* Evita que URLs muito longas quebrem o layout */
+  max-width: 300px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Ajuste específico para mobile */
+
 @media (max-width: 600px) {
   .stats-section {
     padding: 1rem;

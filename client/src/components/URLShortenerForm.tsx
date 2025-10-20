@@ -1,71 +1,74 @@
 import React, { useState } from 'react';
-import api from '../services/api';
+import { api } from '../services/api';
 import toast from 'react-hot-toast';
 import './URLShortenerForm.css'
+import { URLCreate, URLResponse } from '../model/Url';
 
-const URLShortenerForm = ({ onShorten }: { onShorten: (data: any) => any }) => {
-  // Estados para todos os campos do formulário
+
+interface URLShortenerFormProps {
+  onShorten: (url: URLResponse) => any
+}
+
+
+const URLShortenerForm = ({ onShorten }: URLShortenerFormProps) => {
+
   const [url, setUrl] = useState('');
   const [password, setPassword] = useState('');
-  // Estados separados para data e hora
   const [expiryDate, setExpiryDate] = useState(''); 
   const [expiryTime, setExpiryTime] = useState('23:59');
-  const [isFavorite, setIsFavorite] = useState(false);
-
-  // Estados de controle da UI
+  const [isFavorite, setIsFavorite] = useState(false);  
+  const [title, setTitle] = useState<string>('')
   const [showOptions, setShowOptions] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const resetForm = () => {
+    setUrl('');
+    setPassword('');
+    setExpiryDate('');
+    setExpiryTime('23:59');
+    setTitle('')
+    setIsFavorite(false);
+    setShowOptions(false);
+  }
+
+  const createShortenPayload = (): URLCreate => {
+    return {
+      url: url,
+      is_favorite: isFavorite,
+      expires_at: expiryDate && expiryTime ? new Date(`${expiryDate}T${expiryTime}`).toISOString() : null,
+      password: password.trim() != '' ? password.trim() : null,
+      title: title.trim() != '' ? title.trim() : null
+    };
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-
-    const payload: any = {
-      url: url,
-      is_favorite: isFavorite
-    };
-
-    if (password) {
-      payload.password = password;
-    }
-    
-    if (expiryDate && expiryTime) {      
-      const combinedDateTime = `${expiryDate}T${expiryTime}`;
-      payload.expires_at = new Date(combinedDateTime).toISOString();
-    }
+    setLoading(true);       
 
     try {
-      const response = await api.post('/url', payload);
-      onShorten(response.data);
-      toast.success('URL encurtada com sucesso!');
-
-      // 4. Limpa todos os campos do formulário após o sucesso
-      setUrl('');
-      setPassword('');
-      setExpiryDate(''); // Limpa o estado da data
-      setExpiryTime('23:59'); // Limpa o estado da hora
-      setIsFavorite(false);
-      setShowOptions(false);
-
+      const newUrl: URLResponse = await api.shortenUrl(createShortenPayload())
+      onShorten(newUrl);
+      toast.success('URL encurtada com sucesso!');      
+      resetForm()
     } catch (err: any) {
       const errorMessage = err.response?.data?.detail?.[0]?.msg || 'Falha ao encurtar a URL. Verifique se é uma URL válida.';
       toast.error(errorMessage);
       console.error(err);
-    } finally {
-      setLoading(false);
     }
+    
+    setLoading(false);
   };
 
   return (
     <div className="form-container">
       <form onSubmit={handleSubmit}>
-        {/* Input principal da URL (sem alterações) */}
+        
         <div className="main-input-group">
           <input
             type="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="Cole sua URL longa aqui"
+            placeholder="Cole sua URL aqui"
             required
           />
           <button className='button' type="submit" disabled={loading}>
@@ -73,14 +76,14 @@ const URLShortenerForm = ({ onShorten }: { onShorten: (data: any) => any }) => {
           </button>
         </div>
 
-        {/* Botão de opções avançadas (sem alterações) */}
+        {/* Opções (expires_at, password, is_favorite) */}
         <div className="advanced-options-toggle" onClick={() => setShowOptions(!showOptions)}>
           Opções Avançadas {showOptions ? '▲' : '▼'}
         </div>
 
         {showOptions && (
           <div className="advanced-options">
-            {/* Input de senha (sem alterações) */}
+            {/* password */}
             <div className="form-group">
               <label htmlFor="password">Proteger com Senha</label>
               <input
@@ -91,8 +94,19 @@ const URLShortenerForm = ({ onShorten }: { onShorten: (data: any) => any }) => {
                 placeholder="Deixe em branco para não usar senha"
               />
             </div>
+
+            <div className="form-group">
+              <label htmlFor="password">Nome personalizado</label>
+              <input
+                id="alias"
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Deixe em branco para não definir nenhum nome personalizado"
+              />
+            </div>
             
-            {/* GRUPO DE INPUTS PARA DATA E HORA */}
+            {/* Data e hora inputs */}
             <div className="form-group">
               <label>Data de Expiração (Opcional)</label>
               <div className="datetime-group">
@@ -108,8 +122,7 @@ const URLShortenerForm = ({ onShorten }: { onShorten: (data: any) => any }) => {
                 />
               </div>
             </div>
-            
-            {/* Checkbox de favorito (sem alterações) */}
+                        
             <div className="form-group-checkbox">
               <input
                 id="is_favorite"

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, Depends, Query, status, Form, Cookie
 from fastapi.responses import HTMLResponse
 from src.security import get_user_from_token_if_exists
-from src.schemas.urls import URLResponse, URLCreate, UrlPagination, ExpiredUrl
+from src.schemas.urls import URLResponse, URLCreate, UrlPagination
 from src.schemas.url_stats import URLStatsResponse, URLStatsNotFound
 from src.schemas.user import User
 from src.db import get_db

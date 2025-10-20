@@ -242,7 +242,7 @@ async def get_user_sessions(user_id: str | UUID, limit: int, offset: int, conn: 
     r = await conn.fetch(
         """
             SELECT
-                user_id::text
+                user_id::text,
                 TO_CHAR(issued_at, 'DD-MM-YYYY HH24:MI:SS') as issued_at,
                 TO_CHAR(expires_at, 'DD-MM-YYYY HH24:MI:SS') as expires_at,
                 revoked,
@@ -335,34 +335,35 @@ async def assign_url_to_user(url: URLResponse, user_id: str, conn: Connection):
     if url.user_id is None:
         await conn.execute(
             """
-                UPDATE 
-                    urls
-                SET
-                    user_id = $1,
-                    is_favorite = FALSE,
-                    expires_at = NULL
-                WHERE
-                    short_code = $2
+                INSERT INTO user_urls (
+                    url_id,
+                    user_id
+                ) 
+                VALUES
+                    ($1, $2)
+                ON CONFLICT
+                    (url_id, user_id)
+                DO NOTHING
             """,
-            user_id,
-            url.short_code
+            url.id,
+            user_id
         )
 
 
-async def set_user_favorite_url(user_id: str, short_code: str, is_favorite: bool, conn: Connection):
+async def set_user_favorite_url(user_id: str, url_id: int, is_favorite: bool, conn: Connection):
     await conn.execute(
         """
-            UPDATE 
-                urls
+            UPDATE
+                user_urls
             SET
                 is_favorite = $1
             WHERE
                 user_id = $2 AND
-                short_code = $3
+                url_id = $3
         """,
         is_favorite,
         user_id,
-        short_code
+        url_id
     )
 
 

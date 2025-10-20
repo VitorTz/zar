@@ -2,23 +2,25 @@ from fastapi.exceptions import HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 from fastapi import Request, status
 from asyncpg import Connection
+from urllib.parse import urlparse
 from src.schemas.urls import URLCreate
 from src.schemas.url_stats import URLStatsResponse
 from src.schemas.user import User
-from src.services import url_blacklist as url_blacklis_service
+from src.services import url_blacklist as url_blacklist_service
 from src.tables import urls as urls_table
 from src.tables import users as users_table
 from src import security
-import bcrypt
 from src.globals import Globals
 from user_agents import parse
 from src import util
 from datetime import datetime, timezone
+import bcrypt
+import aiohttp
 import json
 
 
 async def get_urls(request: Request, limit: int, offset: int, conn: Connection):
-    base_url = str(request.base_url).rstrip('/')
+    base_url: str = util.extract_base_url(request)
     total, results = await urls_table.get_url_pages(base_url, limit, offset, conn)
     response = {
         "total": total,
@@ -32,6 +34,12 @@ async def get_urls(request: Request, limit: int, offset: int, conn: Connection):
 
 
 async def shorten(url: URLCreate, refresh_token: str | None, request: Request, conn: Connection, user: User | None = None):
+    base_url: str = util.extract_base_url(request)
+    original_url = str(url.url)
+    # Security
+    if not await url_blacklist_service.url_is_in_blacklist(original_url, conn):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL potencialmente maliciosa!.")    
+
     # Update user session
     access_token = None
     expires_at = None
@@ -45,27 +53,25 @@ async def shorten(url: URLCreate, refresh_token: str | None, request: Request, c
                 expires_at,
                 conn        
             )         
-
-    # Create url
-    base_url: str = util.extract_base_url(request)
-    original_url = str(url.url)
-
-    if not await url_blacklis_service.is_valid_url(original_url, conn):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL maliciosa detectada pela Google Safe Browsing API.")
-
-    if not user:
-        url_response: dict | None = await urls_table.get_anonymous_url(original_url, base_url, conn)
+    
+    # Fetch existing url
+    is_new_url = False
+    if url.expires_at or url.password:
+        is_new_url = True
+    elif not user:
+        url_response: dict | None = await urls_table.get_anonymous_url(original_url, base_url, url.title, conn)
+        is_new_url = url_response is None
     else:
-        url_response: dict | None = await urls_table.get_user_url(original_url, base_url, user.id, conn)
+        url_response: dict | None = await urls_table.get_user_url(original_url, base_url, user.id, url.title, conn)
+        is_new_url = url_response is None
     
-    is_new_url = url_response is None
-    
+    # Create url
     if is_new_url and user is None:
         url_response: dict = await urls_table.create_anonymous_url(url, base_url, conn)
     elif is_new_url and user is not None:
         url_response: dict = await urls_table.create_user_url(url, user, base_url, conn)
         
-    if is_new_url:
+    if is_new_url or not url_response['qrcode_url']:
         qrcode_url: str = await util.create_qrcode(url_response['short_url'])
         await urls_table.set_url_qrcode(url_response['short_code'], qrcode_url, conn)
         url_response['qrcode_url'] = qrcode_url
@@ -133,16 +139,53 @@ async def redirect_from_short_code(short_code: str, request: Request, conn: Conn
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="URL não encontrada")
     
     if url_has_expired(url):
-        return RedirectResponse(url=f"/url/expired/?original_url={url['original_url']}&expired_at={url['expires_at']}")
+        return RedirectResponse(
+            url=f"/url/expired/?original_url={url['original_url']}&expired_at={url['expires_at']}",
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT
+        )
     
     if url['p_hash']:
         return HTMLResponse(content=get_password_page_html(short_code))    
     
     await register_click_event(short_code, request, conn)
     await urls_table.update_clicks(short_code, conn)
+    
+    return RedirectResponse(url=url['original_url'], status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
-    return RedirectResponse(url=url['original_url'])
 
+async def fetch_page_metadata(url: str):
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=5, allow_redirects=True) as resp:
+                html = await resp.text(errors="ignore")
+                title = ""
+                favicon = ""
+
+                # Extrai <title>
+                start = html.find("<title>")
+                end = html.find("</title>")
+                if start != -1 and end != -1:
+                    title = html[start + 7:end].strip()
+
+                # Extrai favicon
+                icon_pos = html.find('rel="icon"')
+                if icon_pos != -1:
+                    href_start = html.rfind('href="', 0, icon_pos)
+                    href_end = html.find('"', href_start + 6)
+                    if href_start != -1 and href_end != -1:
+                        favicon = html[href_start + 6:href_end]
+                        if favicon.startswith("/"):
+                            parsed = urlparse(url)
+                            favicon = f"{parsed.scheme}://{parsed.netloc}{favicon}"
+
+                return {
+                    "title": title or "(sem título)",
+                    "favicon": favicon or "https://www.google.com/s2/favicons?domain=" + urlparse(url).netloc,
+                    "status": resp.status,
+                }
+    except Exception:
+        return {"title": "(indisponível)", "favicon": "", "status": "erro"}
+    
 
 async def verify_password_and_redirect(
     short_code: str, 
@@ -150,7 +193,6 @@ async def verify_password_and_redirect(
     request: Request, 
     conn: Connection
 ):
-    """Verifica a senha e redireciona se estiver correta"""
     url: dict | None = await urls_table.get_redirect_url(short_code, conn)
     
     if url is None:
@@ -177,7 +219,11 @@ async def verify_password_and_redirect(
     
     await register_click_event(short_code, request, conn)
     await urls_table.update_clicks(short_code, conn)
-    return RedirectResponse(url=url['original_url'])
+    
+    return RedirectResponse(
+        url=url['original_url'],
+        status_code=status.HTTP_303_SEE_OTHER
+    )
 
 
 async def get_url_stats(short_code: str, conn: Connection):
@@ -230,9 +276,7 @@ async def get_url_stats(short_code: str, conn: Connection):
     return URLStatsResponse(**data)
 
 
-
 def get_password_page_html(short_code: str, error: bool = False) -> str:
-    """Retorna o HTML da página de verificação de senha"""
     error_message = """
         <div style="background-color: #fee; border: 1px solid #fcc; color: #c33; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
             ❌ Senha incorreta. Tente novamente.
@@ -247,6 +291,15 @@ def get_password_page_html(short_code: str, error: bool = False) -> str:
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>URL Protegida - Senha Necessária</title>
         <style>
+            :root {{
+                --background-color: #F8F9FA;
+                --surface-color: #fff;
+                --primary-color: #d8775a;
+                --text-primary: #1e1e1e;
+                --text-secondary: #a0a0a0;
+                --danger-color: #cf6679;
+                --border-color: #2c2c2c;
+            }}
             * {{
                 margin: 0;
                 padding: 0;
@@ -254,17 +307,20 @@ def get_password_page_html(short_code: str, error: bool = False) -> str:
             }}
             
             body {{
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
+                margin: 0;
+                font-family: 'Inter', sans-serif;
+                background-color: var(--background-color);
+                color: var(--text-primary);
                 display: flex;
-                align-items: center;
                 justify-content: center;
-                padding: 20px;
+                align-items: center;
+                height: 100vh;
+                padding: 1rem;
+                box-sizing: border-box;
             }}
             
             .container {{
-                background: white;
+                background-color: var(--surface-color);
                 padding: 40px;
                 border-radius: 12px;
                 box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
@@ -280,13 +336,13 @@ def get_password_page_html(short_code: str, error: bool = False) -> str:
             
             h1 {{
                 font-size: 24px;
-                color: #333;
+                color: var(--text-primary);
                 text-align: center;
                 margin-bottom: 10px;
             }}
             
             .subtitle {{
-                color: #666;
+                color: var(--text-primary);
                 text-align: center;
                 margin-bottom: 30px;
                 font-size: 14px;
@@ -315,13 +371,13 @@ def get_password_page_html(short_code: str, error: bool = False) -> str:
             
             input[type="password"]:focus {{
                 outline: none;
-                border-color: #667eea;
+                border-color: var(--primary-color);
             }}
             
             button {{
                 width: 100%;
                 padding: 14px;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                background: var(--primary-color);
                 color: white;
                 border: none;
                 border-radius: 8px;
@@ -341,23 +397,19 @@ def get_password_page_html(short_code: str, error: bool = False) -> str:
             }}
             
             .short-code {{
-                background: #f5f5f5;
+                background: var(--background-color);
                 padding: 8px 12px;
                 border-radius: 6px;
                 font-family: monospace;
-                font-size: 14px;
+                font-size: 16px;
                 text-align: center;
                 margin-bottom: 20px;
-                color: #555;
+                color: var(--text-primary);
             }}
         </style>
     </head>
     <body>
         <div class="container">
-            <div class="lock-icon">🔒</div>
-            <h1>URL Protegida</h1>
-            <p class="subtitle">Esta URL requer uma senha para acesso</p>
-            
             <div class="short-code">/{short_code}</div>
             
             {error_message}

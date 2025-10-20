@@ -2,10 +2,16 @@ import React, { useState } from 'react';
 import { generateUrlImage } from '../utils/imageGenerator';
 import toast from 'react-hot-toast';
 import './ImageGeneratorModal.css';
-import { Url } from '../model/Url';
+import { URLResponse } from '../model/Url';
 
 
-const ImageGeneratorModal = ({ url, onClose }: {url: Url | null, onClose: () => any}) => {
+interface ImageGeneratorModalProps {
+  url: URLResponse | null, 
+  onClose: () => any  
+}
+
+
+const ImageGeneratorModal = ({ url, onClose }: ImageGeneratorModalProps) => {
   const [title, setTitle] = useState('Leia o QR Code!');
   const [description, setDescription] = useState('Aponte a câmera do seu celular para visitar o link.');
   const [isLoading, setIsLoading] = useState(false);
@@ -22,8 +28,7 @@ const ImageGeneratorModal = ({ url, onClose }: {url: Url | null, onClose: () => 
         qrCodeUrl: url.qrcode_url,
         title,
         description,
-        originalUrl: url.original_url,
-        shortUrl: url.short_url.replace(/^https?:\/\//, '')
+        originalUrl: url.original_url
       });
       
       const link = document.createElement('a');

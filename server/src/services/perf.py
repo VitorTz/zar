@@ -1,4 +1,4 @@
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from src.perf.system_monitor import get_monitor
 from datetime import datetime, timezone
 
@@ -121,23 +121,17 @@ async def clear_metrics():
     return {"message": "Metrics history cleared successfully"}
 
 
-async def generate_full_report():
+async def generate_full_report() -> dict:
     monitor = get_monitor()
-    
-    # Coleta todas as métricas
+        
     process_info = monitor.get_process_info()
     memory_info = monitor.get_memory_info()
     cpu_info = monitor.get_cpu_info()
     disk_info = monitor.get_disk_info()
     network_info = monitor.get_network_info()
-    
-    # Histórico completo
-    history = monitor.get_history(metric="all")
-    
-    # Análise e recomendações
+    history = monitor.get_history(metric="all")    
     analysis = generate_analysis(memory_info, cpu_info, process_info)
-    
-    # Monta o relatório
+        
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "report_period": {

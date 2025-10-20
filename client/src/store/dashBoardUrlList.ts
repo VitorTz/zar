@@ -8,7 +8,7 @@ interface UrlState {
 }
 
 
-export const useUrlListState = create<UrlState>((set) => ({
+export const useDashboardUrlList = create<UrlState>((set) => ({
     urlList: new UrlList(),  
     setUrlList: (urlList: UrlList) => set((state) => ({ urlList }))
 }));

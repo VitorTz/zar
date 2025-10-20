@@ -1,23 +1,23 @@
-// src/pages/StatsPage.tsx
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import api from '../services/api';
+import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import './StatsPage.css';
 import { normalizeTimestamp } from '../utils/util';
-import { UserStats } from '../model/User';
+import { UserSession, UserSessionPagination, UserStats } from '../model/User';
 import { DashboardStats, TopURL } from '../model/DashboardStats';
 
-// Componente para os cartões de estatísticas gerais
+
+
 const StatCard = ({ title, value }: {title: string, value: string | number}) => (
   <div className="stat-card">
     <span className="stat-title">{title}</span>
-    {/* Formata o número para melhor legibilidade */}
     <span className="stat-value">{typeof value === 'number' ? value.toLocaleString('pt-BR') : value}</span>
   </div>
 );
 
-// Componente para a tabela de URLs populares
+
+
 const PopularUrlsTable = ({ urls }: {urls: TopURL[]}) => (
   <div className="stats-section">
     <h2>Popularidade</h2>
@@ -33,7 +33,6 @@ const PopularUrlsTable = ({ urls }: {urls: TopURL[]}) => (
         <tbody>
           {urls.map(url => (
             <tr key={url.short_code}>
-              {/* O short_url completo não está no modelo, então usamos o short_code */}
               <td><a href={url.short_url} target="_blank" rel="noopener noreferrer">{url.short_code}</a></td>
               <td className="original-url-cell" title={url.original_url}>{url.original_url}</td>
               <td>{url.clicks}</td>
@@ -45,29 +44,80 @@ const PopularUrlsTable = ({ urls }: {urls: TopURL[]}) => (
   </div>
 );
 
+
+
+const UserSessionsTable = ({ sessions }: { sessions: UserSession[] }) => (
+    <div className="stats-section">
+        <h2>Suas Sessões Ativas</h2>
+        <div className="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Criada em</th>
+                        <th>Último Uso</th>
+                        <th>Endereço IP</th>
+                        <th>Dispositivo/Navegador</th>
+                    </tr>
+                </thead>
+                <tbody>                    
+                    {sessions.map(session => (                        
+                        <tr key={session.issued_at}>
+                            <td>{normalizeTimestamp(session.issued_at)}</td>
+                            <td>{normalizeTimestamp(session.last_used_at)}</td>
+                            <td>{session.device_ip}</td>
+                            <td className="user-agent-cell" title={session.user_agent ?? 'N/A'}>
+                                {session.user_agent}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    </div>
+);
+
+
 const StatsPage = () => {
-  const { user } = useAuth();
+
+  const { user, refreshUser } = useAuth();
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
-  const [userStats, setUserStats] = useState<UserStats | null>(null);  
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [userSessions, setUserSessions] = useState<UserSessionPagination | null>(null);  
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
+      const currentUser = user || await refreshUser();
+      
+      if (!currentUser) {
+          try {
+              const dashRes = await api.getDashboardStats();
+              setDashboardStats(dashRes);
+          } catch (error) {
+              console.error("Falha ao buscar estatísticas do dashboard", error);
+          } finally {
+              setLoading(false);
+          }
+          return;
+      }
+      
       try {
-        await api.post("/auth/refresh")
-        const [dashRes, userRes] = await Promise.all([
-          api.get('/dashboard/stats'),
-          user ? api.get('/user/stats') : Promise.resolve({ data: null })
+        const [dashRes, userRes, userSes] = await Promise.all([
+          api.getDashboardStats(),
+          api.getUserStats(),
+          api.getSessions()
         ]);
-        setDashboardStats(dashRes.data);
-        setUserStats(userRes.data);
+        setDashboardStats(dashRes);
+        setUserStats(userRes);
+        setUserSessions(userSes);
       } catch (error) {
         console.error("Falha ao buscar estatísticas", error);
       } finally {
         setLoading(false);
       }
     };
-    fetchData();
+
+    fetchData();  
   }, [user]);
 
   if (loading || !dashboardStats) {
@@ -98,9 +148,9 @@ const StatsPage = () => {
             <YAxis />
             <Tooltip />
             <Legend />
-            <Bar dataKey="total_clicks" name="Cliques" fill="var(--primary-color)" />
-            <Bar dataKey="new_urls" name="Novas URLs" fill="var(--primary-hover-color)" />
-            <Bar dataKey="new_users" name="Novos Usuários" fill="#82ca9d" />
+            <Bar dataKey="total_clicks" name="Cliques" fill="var(--primary-color)" legendType='square' />
+            <Bar dataKey="new_urls" name="Novas URLs" fill="var(--primary-hover-color)" legendType='square' />
+            <Bar dataKey="new_users" name="Novos Usuários" fill="#82ca9d" legendType='square' />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -111,7 +161,6 @@ const StatsPage = () => {
           <div className="stats-grid">
               <StatCard title="URLs Criadas (24h)" value={dashboardStats.urls_created_last_24h} />
               <StatCard title="URLs Criadas (7d)" value={dashboardStats.urls_created_last_7d} />
-              <StatCard title="URLs com Alias" value={dashboardStats.custom_alias_urls} />
               <StatCard title="URLs Protegidas" value={dashboardStats.protected_urls} />
               <StatCard title="URLs que Expiram" value={dashboardStats.expiring_urls} />
               <StatCard title="Média de Cliques" value={dashboardStats.avg_clicks_per_url.toFixed(2)} />
@@ -125,8 +174,7 @@ const StatsPage = () => {
               <StatCard title="Novos Usuários (7d)" value={dashboardStats.new_users_last_7d} />
               <StatCard title="Novos Usuários (30d)" value={dashboardStats.new_users_last_30d} />
               <StatCard title="Usuários Ativos (24h)" value={dashboardStats.users_active_last_24h} />
-              <StatCard title="Usuários Ativos (7d)" value={dashboardStats.users_active_last_7d} />
-              <StatCard title="Usuários Verificados" value={dashboardStats.verified_users} />
+              <StatCard title="Usuários Ativos (7d)" value={dashboardStats.users_active_last_7d} />              
           </div>
       </div>
 
@@ -157,7 +205,10 @@ const StatsPage = () => {
       )}
 
       {/* Seção das URLs populares */}
-      <PopularUrlsTable urls={dashboardStats.top_urls} />
+      <PopularUrlsTable urls={dashboardStats.top_urls} />      
+      {userSessions && userSessions.results && userSessions.results.length > 0 && (
+          <UserSessionsTable sessions={userSessions.results} />
+      )}
     </div>
   );
 };

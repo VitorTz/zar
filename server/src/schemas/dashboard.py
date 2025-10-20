@@ -32,8 +32,7 @@ class TimelineEntry(BaseModel):
 
 class DashboardStats(BaseModel):
     total_urls: int
-    favorite_urls: int
-    custom_alias_urls: int
+    favorite_urls: int    
     protected_urls: int
     expiring_urls: int
     urls_created_last_24h: int
@@ -93,7 +92,6 @@ class DashboardStats(BaseModel):
             "example": {
                 "total_urls": 3,
                 "favorite_urls": 1,
-                "custom_alias_urls": 0,
                 "protected_urls": 0,
                 "expiring_urls": 0,
                 "urls_created_last_24h": 3,

@@ -1,7 +1,7 @@
 from src.security import get_user_from_token
 from src.schemas.user import User, UserStats
 from src.schemas.urls import UrlPagination, URLDelete, CreateFavoriteURL, URLResponse, UrlShortCode
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, status
 from asyncpg import Connection
 from src.db import get_db
 from src.services import user as user_service
@@ -32,7 +32,7 @@ async def set_favorite_url(
     return await user_service.set_user_favorite_url(user, url, request, conn)
 
 
-@router.post("/url")
+@router.post("/url", status_code=status.HTTP_200_OK)
 async def assign_url_to_user(
     url: UrlShortCode,
     user: User | None = Depends(get_user_from_token),

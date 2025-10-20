@@ -25,8 +25,7 @@ export async function generateUrlImage({
   title, 
   description, 
   originalUrl, 
-  shortUrl 
-}: {qrCodeUrl: string, title: string, description: string, originalUrl: string, shortUrl: string}) {
+}: { qrCodeUrl: string, title: string, description: string, originalUrl: string }) {
   const canvas = document.createElement('canvas');
   const width = 800;
   const height = 1000;

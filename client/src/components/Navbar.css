@@ -1,4 +1,5 @@
-/* src/components/Navbar.css */
+
+
 .navbar {
   display: flex;
   justify-content: space-between;
@@ -196,7 +197,7 @@
 
 
 .nav-button.active {
-  color: var(--primary-hover-color);
+  color: var(--primary-color);
   font-weight: 700; /* Opcional: Deixa o texto em negrito para dar mais destaque */
 }
 

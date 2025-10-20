@@ -1,11 +1,17 @@
 from src.globals import Globals
 from asyncpg import Connection
 from src.constants import Constants
+from src.schemas.urls import UrlBlackListCreate
 from src.tables import url_blacklist as url_blacklist_table
 import httpx
 
 
-async def is_valid_url(url: str, conn: Connection) -> bool:
+async def create_url_blacklist(url: UrlBlackListCreate, conn: Connection):
+    await url_blacklist_table.add_url_to_blacklist(url, conn)
+    await url_blacklist_table.delete_blacklisted_urls(url)
+
+
+async def url_is_in_blacklist(url: str, conn: Connection) -> bool:
     cache_key = f"safe_browsing:{url}"
     
     # Short time storage

@@ -19,9 +19,7 @@ from src.routes import shortener
 from src.routes import admin
 from src.routes import auth
 from src.routes import user
-from src.routes import logs
 from src.routes import dashboard
-from datetime import datetime, timezone
 import redis.asyncio as redis
 import time
 import contextlib
@@ -88,10 +86,19 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+@app.get("/")
+def read_root():
+    return { "status": "ok" }
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    favicon_path = os.path.join("static", "favicon.ico")
+    return FileResponse(favicon_path)
+
 
 app.include_router(shortener.router, tags=["shorten"])
 app.include_router(admin.router, prefix="/admin", tags=["admin"])
-app.include_router(logs.router, prefix="/admin", tags=["logs"])
 app.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 app.include_router(user.router, prefix="/user", tags=["user"])
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -119,16 +126,6 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
-@app.get("/")
-def read_root():
-    return { "status": "ok" }
-
-
-@app.get("/favicon.ico")
-async def favicon():
-    favicon_path = os.path.join("static", "favicon.ico")
-    return FileResponse(favicon_path)
-
 
 @app.get("/url/expired", response_class=HTMLResponse, summary="Página para URL Expirada")
 async def show_expired_page(request: Request, original_url: str = Query(), expired_at: str = Query()):
@@ -140,16 +137,6 @@ async def show_expired_page(request: Request, original_url: str = Query(), expir
     
     return templates.TemplateResponse("expired.html", context)
 
-
-@app.get("/url/password", response_class=HTMLResponse, summary="Página para URL Expirada")
-async def show_password_page(request: Request, original_url: str = Query(), expired_at: str = Query()):
-
-    context = {
-        "request": request,
-        "expired_at": expired_at
-    }    
-    
-    return templates.TemplateResponse("expired.html", context)
 
 
 ########################## MIDDLEWARES ##########################

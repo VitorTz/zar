@@ -30,7 +30,6 @@ async def get_user_urls(user_id: str, request: Request, limit: int, offset: int,
 
 async def assign_url_to_user(user: User, url: UrlShortCode, conn: Connection):
     await users_table.assign_url_to_user(user.id, url.short_code, conn)
-    return Response()
 
 
 async def set_user_favorite_url(user: User, url: CreateFavoriteURL, request: Request, conn: Connection):    

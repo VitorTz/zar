@@ -1,55 +1,56 @@
-import { Url } from "../model/Url";
+import { URLResponse } from "../model/Url"
 
-
-let URLS: Url[] = []
-const shortCodeSet = new Set()
+let urls: URLResponse[] = []    
+let shortCodeSet = new Set()
 
 
 export class UrlList {
-
-    urls: Url[] = []
-
-    constructor(urls: Url[]) {
-        this.urls = urls
-    }
-
-    addMany(urls: Url[]): UrlList {
-        urls.forEach(
-            url => {
-                if (!shortCodeSet.has(url.short_code)) {
-                    URLS.unshift(url)
-                    shortCodeSet.add(url.short_code)
-                }
+    
+    addMany(newUrls: URLResponse[]): UrlList {
+        newUrls.forEach(url => {
+            if (!shortCodeSet.has(url.short_code)) {
+                shortCodeSet.add(url.short_code)
+                urls.unshift(url)
             }
-        )
-        return new UrlList(URLS)
+        })
+        return new UrlList()
     }
 
-    add(url: Url): UrlList {
+    add(url: URLResponse): UrlList {
         if (!shortCodeSet.has(url.short_code)) {
-            URLS.unshift(url)
             shortCodeSet.add(url.short_code)
+            urls.unshift(url)
         }
-        return new UrlList(URLS)
+        return new UrlList()
     }
 
-    remove(url: Url): UrlList {
+    set(newUrls: URLResponse[]): UrlList {
+        urls = newUrls
+        shortCodeSet = new Set(newUrls.map(i => i.short_code))
+        return new UrlList()
+    }
+
+    remove(url: URLResponse): UrlList {
         if (shortCodeSet.has(url.short_code)) {
-            URLS = URLS.filter(i => i.short_code != url.short_code)
             shortCodeSet.delete(url.short_code)
+            urls = urls.filter(i => i.short_code != url.short_code)
         }
-        return new UrlList(URLS)
+        return new UrlList()
     }
 
-    favorite(url: Url, is_favorite: boolean): UrlList {
+    favorite(url: URLResponse, is_favorite: boolean): UrlList {
         if (shortCodeSet.has(url.short_code)) {
-            URLS = URLS.map(i => i.short_code === url.short_code ? {...i, is_favorite} : i)
+            urls = urls.map(i => i.short_code === url.short_code ? {...i, is_favorite} : i)
         }
-        return new UrlList(URLS)
+        return new UrlList()
     }
 
-    getUrls(): Url[] {
-        return this.urls
+    getUrls(): URLResponse[] {
+        return urls
     }    
+
+    isEmpty() {
+        return urls.length === 0
+    }
 
 }

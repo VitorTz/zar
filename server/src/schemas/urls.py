@@ -12,6 +12,7 @@ class ExpiredUrl(BaseModel):
 class URLCreate(BaseModel):
 
     url: HttpUrl
+    title: Optional[str] = None
     password: Optional[str] = None
     expires_at: Optional[datetime] = None
     is_favorite: Optional[bool] = False
@@ -35,12 +36,15 @@ class CreateFavoriteURL(BaseModel):
 
 class URLResponse(BaseModel):
     
+    id: int
     user_id: Optional[str] = None
     original_url: str
     short_url: str
     short_code: str
     clicks: int
+    has_password: bool
     qrcode_url: str
+    title: Optional[str] = None
     is_favorite: bool = False
     created_at: Optional[str] = None
     expires_at: Optional[str] = None
@@ -103,3 +107,31 @@ class UrlAnalyticPagination(BaseModel):
 class UrlStats(BaseModel):
 
     pass
+
+
+class UrlBlacklist(BaseModel):
+
+    id: int
+    url: str
+    url_hash: bytes
+    created_at: str
+
+
+class UrlBlacklistPagination(BaseModel):
+
+    total: int
+    limit: int
+    offset: int
+    page: int
+    pages: int
+    results: List[UrlBlacklist]
+
+
+class UrlBlackListCreate(BaseModel):
+
+    url: str
+
+
+class UrlBlackListDelete(BaseModel):
+
+    url: str

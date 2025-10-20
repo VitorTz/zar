@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import api from '../services/api';
+import { api } from '../services/api';
 import { ZarUser } from '../model/User';
+
 
 const AuthContext = createContext(null);
 
@@ -11,6 +12,7 @@ export const useAuth = (): {
   login: (email: string, password: string) => Promise<any>;
   signup: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<ZarUser | null>
 } => useContext(AuthContext as any);
 
 
@@ -20,11 +22,10 @@ export const AuthProvider = ({ children }: {children: any}) => {
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    
     const checkUser = async () => {
       try {
-        const response = await api.get('/auth/me');
-        setUser(response.data);
+        const u: ZarUser = await api.getMe();
+        setUser(u);
       } catch (error) {
         setUser(null);
       } finally {
@@ -35,18 +36,18 @@ export const AuthProvider = ({ children }: {children: any}) => {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const response = await api.post('/auth/login', { email, password });
-    setUser(response.data);
-    return response.data;
+    const u = await api.login({ email, password })
+    setUser(u)
+    return u
   };
 
   const signup = async (email: string, password: string) => {
-    await api.post('/auth/signup', { email, password });
+    await api.signup({ email, password })
   };
 
   const logout = async () => {
     try {
-      await api.post('/auth/logout');
+      await api.logout()
     } catch (error) {
       console.error("Logout failed, but clearing user state.", error);
     } finally {
@@ -54,18 +55,31 @@ export const AuthProvider = ({ children }: {children: any}) => {
     }
   };
 
+  const refreshUser = async (): Promise<ZarUser | null> => {
+    try {
+      const u = await api.refreshSession()
+      setUser(u)
+      return u
+    } catch (err) {
+      console.log(err)
+    }
+    return null
+  }
+
   const value: {
     user: ZarUser | null;
     loading: boolean;
     login: (email: string, password: string) => Promise<any>;
     signup: (email: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
+    refreshUser: () => Promise<ZarUser | null>;
 } = {
     user,
     loading,
     login,
     signup,
     logout,
+    refreshUser,
   };
 
   return (

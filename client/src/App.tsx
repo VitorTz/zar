@@ -9,7 +9,7 @@ import StatsPage from './pages/StatsPage';
 import { useAuth } from './context/AuthContext';
 import { Toaster } from 'react-hot-toast';
 import Footer from './components/Footer';
-import NotFoundPage from './pages/NotFoundPage'; // 1. Importe a nova página
+import NotFoundPage from './pages/NotFoundPage';
 import './App.css';
 
 

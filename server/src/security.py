@@ -11,7 +11,22 @@ from src.globals import Globals
 from fastapi import status
 from jose import jwt, JWTError
 from asyncpg import Connection
+from src.constants import Constants
+from urllib.parse import urlparse, urljoin
+from dataclasses import dataclass
+import aiohttp
+import ipaddress
+import socket
+import hashlib
 import uuid
+
+
+@dataclass
+class UrlMetadata:
+    final_url: str
+    status: int
+    content_type: str
+    content_length: str | None
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -162,3 +177,52 @@ def set_access_cookie(response: Response, access_token: str, refresh_token: str)
         path="/",
         max_age=Constants.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
     )
+
+
+def sha256_bytes(url: str) -> bytes:
+    return hashlib.sha256(url.encode("utf-8")).digest()
+
+
+async def fetch_secure_url_metadata(url: str) -> dict:
+    current_url = url
+    for _ in range(5):
+        parsed = urlparse(current_url)
+        if not parsed.scheme or not parsed.netloc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"URL inválida: {current_url}")
+        
+        try:
+            ip = socket.gethostbyname(parsed.hostname)
+            ip_obj = ipaddress.ip_address(ip)
+            for net in Constants.PRIVATE_NETWORKS:
+                if ip_obj in net:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL apontando para rede privada não permitida")
+        except socket.gaierror:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Hostname não resolvível: {parsed.hostname}")
+        
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.head(current_url, allow_redirects=False, timeout=5) as resp:
+                    if resp.status in (301, 302, 303, 307, 308):
+                        location = resp.headers.get("Location")
+                        if not location:
+                            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Redirecionamento inválido")
+                        current_url = urljoin(current_url, location)
+                        continue
+                    elif resp.status != 200:
+                        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"URL inacessível, status {resp.status}")
+                    else:
+                        return UrlMetadata(
+                            final_url=current_url,
+                            status=resp.status,
+                            content_type=resp.headers.get("Content-Type", ""),
+                            content_length=resp.headers.get("Content-Length", "")
+                        )
+            except Exception:
+                return UrlMetadata(
+                    final_url=current_url,
+                    status=resp.status,
+                    content_type="",
+                    content_length=None
+                )
+
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Redirecionamentos excederam {5}")

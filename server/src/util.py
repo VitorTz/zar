@@ -3,8 +3,12 @@ from src.schemas.client_info import ClientInfo
 from fastapi import Request
 from pathlib import Path
 from asyncpg import Connection
+from urllib.parse import urlparse
 from src.s3 import S3
+import ipaddress
+import socket
 import uuid
+import aiohttp
 import segno
 import random
 import string

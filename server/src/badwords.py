@@ -1,0 +1,58 @@
+
+
+
+BAD_WORDS = {
+    "@sshole",
+    "asshole",
+    "assh0le",
+    "asshol3",
+    "asshole",
+    "b@st@rd",
+    "bastard",
+    "bastard",
+    "c@r@lho",
+    "caralho",
+    "caralh0",
+    "caralho",
+    "d1psh1t",
+    "dipshit",
+    "dumbass",
+    "dipshit",
+    "dumb@ss",
+    "dumbass",
+    "j@ck@ss",
+    "jackass",
+    "jackass",
+    "m@ldito",
+    "maldito",
+    "mald1to",
+    "maldit0",
+    "maldito",
+    "p3rv3rt",
+    "pervert",
+    "pervert",
+    "assh0le",
+    "asshol3",
+    "asshole",
+    "b@st@rd",
+    "bastard",
+    "c@r@lho",
+    "caralh0",
+    "caralho",
+    "d1psh1t",
+    "dipshit",
+    "dumb@ss",
+    "dumbass",
+    "j@ck@ss",
+    "jackass",
+    "m@ldito",
+    "mald1to",
+    "maldit0",
+    "maldito",
+    "p3rv3rt",
+    "pervert"
+}
+
+
+def is_bad_word(x: str) -> bool:
+    return x.lower().strip() in BAD_WORDS

@@ -1,20 +1,27 @@
-/* src/components/URLList.css */
+
+
+:root {
+  --primary-color: #007bff;
+  --primary-hover-color: #0056b3;
+  --background-color: #f8f9fa;
+  --card-background-color: #ffffff;
+  --text-color: #343a40;
+  --text-muted-color: #6c757d;
+  --border-color: #dee2e6;
+  --danger-color: #dc3545;
+  --danger-hover-color: #c82333;
+}
+
 .url-list-container {
-  margin-top: 3rem;
-  text-align: left;
-}
-
-.url-list-container h3 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin-bottom: 1.5rem;
-  color: var(--text-primary-color);
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid var(--border-color);
+  width: 100%;
+  max-width: 900px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+  box-sizing: border-box;
 }
 
 .url-list {
-  list-style: none;
+  list-style-type: none;
   padding: 0;
   margin: 0;
   display: flex;
@@ -22,151 +29,14 @@
   gap: 1rem;
 }
 
-.url-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem; /* Aumentado o espaço entre os itens */
-}
 
-/* --- Layout Principal do Item da Lista --- */
-.url-item {
-  background-color: var(--surface-color);
-  padding: 1.5rem;
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  transition: box-shadow 0.3s, transform 0.3s;
-}
-
-.url-item:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 25px var(--shadow-color);
-}
-
-/* O .url-main-content é um contêiner de linha para o QR e os detalhes */
-.url-main-content {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  width: 100%;
-}
-
-/* --- Estilo do QR Code --- */
-.qr-code-container {
-  width: 256px;
-  height: 256px;
-  padding: 5px;
-  background-color: #fff;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-  flex-shrink: 0;
-}
-
-.qr-code-container img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  border-radius: 4px;
-}
-
-.url-item:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 25px var(--shadow-color);
-}
-
-/* --- Contêiner para Informações e Ações --- */
-.url-details {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  min-width: 0;
-}
-
-.url-info {
-  flex: 1;
-  min-width: 250px;
-  padding-right: 1rem;
-}
-
-.original-url {
-  font-size: 0.9rem;
-  font-weight: 300;
-  color: var(--text-secondary-color);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0 0 0.5rem 0;
-  max-width: 95%;
-}
-
-.short-url {
-  font-weight: 600;
-  color: var(--primary-color);
-  text-decoration: none;
+.url-list-container p {
+  text-align: center;
+  color: var(--text-muted-color);
   font-size: 1.1rem;
-  word-break: break-all;
-}
-
-
-.url-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem; /* Reduzido o espaço entre os botões */
-  font-size: 0.9rem;
-}
-
-.url-actions button {
-  padding: 6px 14px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  background-color: transparent;
-  color: var(--primary-color);
-  border: 1px solid var(--primary-color);
-}
-
-.url-actions button:hover {
-  background-color: var(--primary-color);
-  color: var(--surface-color);
-  transform: none; /* Desativa o efeito de subida */
-}
-
-.url-actions .icon-button {
-  background: none;
-  border: 1px solid transparent;
-  padding: 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  transition: background-color 0.2s;
-}
-
-
-.url-actions .icon-button:hover {
-  background-color: rgba(0,0,0,0.05);
-}
-
-.url-actions .icon-button svg {
-  stroke: var(--text-secondary-color);
-}
-
-.url-actions .delete-button {
-  background-color: transparent;
-  color: var(--danger-color);
-  border: 1px solid var(--danger-color);
-}
-
-.url-actions .delete-button:hover {
-  background-color: var(--danger-color);
-  color: var(--surface-color);
+  padding: 3rem 1rem;
+  background-color: var(--card-background-color);
+  border-radius: 8px;
 }
 
 
@@ -176,240 +46,39 @@
   align-items: center;
   gap: 1rem;
   margin-top: 2rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border-color);
+  padding: 1rem;
+  background-color: var(--card-background-color);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.pagination-controls span {
+  font-size: 0.95rem;
+  color: var(--text-color);
+  font-weight: 500;
 }
 
 .pagination-controls button {
-  padding: 8px 16px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  background-color: transparent;
+  padding: 0.6rem 1.2rem;
+  border: 1px solid var(--border-color);
+  background-color: #fff;
   color: var(--primary-color);
-  border: 1px solid var(--primary-color);
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.2s, color 0.2s;
+  font-weight: 600;
+  transition: all 0.2s ease-in-out;
 }
 
 .pagination-controls button:hover:not(:disabled) {
   background-color: var(--primary-color);
   color: #fff;
+  border-color: var(--primary-color);
 }
 
 .pagination-controls button:disabled {
-  border-color: #ccc;
-  color: #ccc;
+  background-color: #e9ecef;
+  color: var(--text-muted-color);
   cursor: not-allowed;
-}
-
-.pagination-controls span {
-  font-size: 0.9rem;
-  color: var(--text-secondary-color);
-  font-weight: 500;
-}
-
-
-/* --- Estilos para o Botão de Favorito --- */
-.favorite-button svg {
-  stroke: #f39c12; /* Cor da borda da estrela (amarelo/laranja) */
-}
-
-/* Quando a URL é favorita, a estrela é preenchida */
-.favorite-button.favorited svg {
-  fill: #f39c12; /* Cor de preenchimento da estrela */
-}
-
-/* Efeito de hover sutil */
-.favorite-button:hover {
-  background-color: rgba(243, 156, 18, 0.1); /* Fundo amarelo bem claro */
-}
-
-/* O item da lista agora é um contêiner flex em coluna */
-.url-item {
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 1.5rem;
-}
-
-/* Contêiner para os detalhes dos stats (inicialmente escondido) */
-.url-stats-details {
-  width: 100%;
-  overflow: hidden;
-  max-height: 0; /* Começa com altura 0 para a animação */
-  opacity: 0;
-  transition: max-height 0.5s ease-in-out, opacity 0.5s ease-in-out, margin-top 0.5s ease-in-out;
-  border-top: 1px solid transparent; /* Borda que aparecerá com a animação */
-  margin-top: 0;
-}
-
-/* Quando o card está aberto, expande a seção de stats */
-.url-item.stats-open .url-stats-details {
-  max-height: 1300px; /* Um valor alto o suficiente para caber o conteúdo */
-  opacity: 1;
-  border-top: 1px solid var(--border-color);
-  margin-top: 1.5rem; /* Adiciona espaço entre o conteúdo principal e os stats */
-  padding-top: 1.5rem;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1rem;
-  width: 100%;
-  margin-bottom: 1.5rem;
-  text-align: center;
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-}
-
-.stat-item span {
-  font-size: 0.9rem;
-  color: var(--text-secondary-color);
-}
-
-.stat-item strong {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--primary-color);
-}
-
-/* Botão de fechar stats */
-.close-stats-button {
-  display: block;
-  margin: 0 auto;
-  /* Reutiliza o estilo dos botões de paginação */
-  padding: 8px 16px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  background-color: transparent;
-  color: var(--text-secondary-color);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  cursor: pointer;
-}
-.close-stats-button:hover {
-  background-color: var(--background-color);
-}
-
-
-/* Botão para abrir/fechar os stats */
-.stats-button svg {
-  stroke: var(--text-secondary-color);
-  transition: stroke 0.3s;
-}
-
-.stats-button.active svg,
-.favorite-button:hover svg,
-.download-button:hover svg,
-.stats-button:hover svg {
-  stroke: var(--primary-color);
-}
-
-.stats-display-container {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-}
-
-/* Modifica a grid de stats para ser mais flexível */
-.stats-grid.main-metrics {
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-}
-
-.stat-item {
-  background: var(--background-color);
-  padding: 1rem;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-}
-
-.stat-item strong {
-  font-size: 1.2rem; /* Tamanho ajustado para as novas métricas */
-}
-
-.timeline-chart-wrapper {
-  width: 100%;
-  overflow-x: auto; /* Permite rolagem horizontal em telas pequenas */
-}
-
-.timeline-chart {
-  min-width: 350px; /* Garante espaço mínimo para o gráfico não quebrar */
-  width: 100%;
-}
-
-.timeline-chart h4, .breakdown-list h4 {
-  margin-top: 0;
-  margin-bottom: 1rem;
-  font-weight: 600;
-  color: var(--text-secondary-color);
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 0.5rem;
-}
-
-/* Seção para as listas detalhadas */
-.detailed-breakdown {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 2rem;
-}
-
-.breakdown-list ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.breakdown-list li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.9rem;
-}
-
-.breakdown-list li span {
-  color: var(--text-secondary-color);
-}
-
-
-@media (max-width: 768px) {
-
-  /* ✨ CORREÇÃO PRINCIPAL: Empilha o QR code e os detalhes verticalmente */
-  .url-main-content {    
-    flex-direction: column;
-    gap: 1rem;
-  }
-  
-  /* Ajusta o tamanho do QR Code para telas menores */
-  .qr-code-container {    
-    width: 150px;
-    height: 150px;
-    margin: 0 auto; /* Centraliza o QR code */
-  }
-
-  /* Centraliza o texto das URLs */
-  .url-info {
-    text-align: center;
-    width: 100%;
-    padding-right: 0;
-  }
-
-  /* Permite que a URL original quebre a linha */
-  .original-url {
-    white-space: normal;
-    word-break: break-all;
-  }
-
-  /* Centraliza o contêiner de botões de ação */
-  .url-actions {
-    width: 100%;
-    justify-content: center;
-  }
+  border-color: var(--border-color);
 }

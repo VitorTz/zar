@@ -26,7 +26,7 @@ export interface TimelineEntry {
   total_clicks: number;
 }
 
-export interface DashboardStats {
+export type DashboardStats = {
   // URLs
   total_urls: number;
   favorite_urls: number;

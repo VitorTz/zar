@@ -1,23 +1,27 @@
 import React, { useState } from 'react';
-import './UrlList.css';
 import ImageGeneratorModal from './ImageGeneratorModal'; 
 import UrlListItem from './UrlListItem';
 import toast from 'react-hot-toast';
-import { Url } from '../model/Url';
-import { useUrlListState } from '../store/urlStore';
+import { URLResponse } from '../model/Url';
+import { UrlList } from '../utils/UrlList';
+import './UrlList.css';
+
 
 interface URLListProps {
   showNoUrlsText?: boolean 
-  handleDelete: (url: Url) => any
-  handleFavorite: (url: Url) => any
+  urlList: UrlList
+  handleDelete: (url: URLResponse) => any
+  handleFavorite: (url: URLResponse) => any  
 }
 
-const URLList = ({ 
+
+const URLList = ({
+  urlList,
   showNoUrlsText = false, 
   handleDelete, 
-  handleFavorite 
+  handleFavorite  
 }: URLListProps) => {
-  const { urlList } = useUrlListState()
+    
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -36,14 +40,14 @@ const URLList = ({
   };
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedUrl, setSelectedUrl] = useState<Url | null>(null);
+  const [selectedUrl, setSelectedUrl] = useState<URLResponse | null>(null);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success('URL copiada para a área de transferência!');
   };
 
-  const openModal = (url: Url) => {
+  const openModal = (url: URLResponse) => {
     setSelectedUrl(url);
     setIsModalOpen(true);
   };
@@ -61,7 +65,7 @@ const URLList = ({
     <>
       <div className="url-list-container">
         <ul className="url-list">
-          {currentUrls.map((url: Url) => (
+          {currentUrls.map((url: URLResponse) => (
             <UrlListItem
               key={url.short_code}
               url={url}

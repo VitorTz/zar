@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Navbar.css';
+import { useDashboardUrlList } from '../store/dashBoardUrlList';
+import { UrlList } from '../utils/UrlList';
+
 
 const Navbar = () => {
 
@@ -10,6 +13,7 @@ const Navbar = () => {
   const location = useLocation();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { setUrlList } = useDashboardUrlList()
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -22,6 +26,7 @@ const Navbar = () => {
 
   const handleLogout = async () => {
     await logout();
+    setUrlList(new UrlList())
     navigate('/');
     setIsMenuOpen(false);
   };
