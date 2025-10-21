@@ -1,8 +1,9 @@
-from src.schemas.urls import UrlBlackListCreate, UrlBlackListDelete
+from src.schemas.domain import DomainCreate, DomainDelete
 from src.tables import users as users_table
-from src.tables import url_blacklist as url_blacklist_table
+from src.tables import domains as domains_table
 from src.tables import urls as urls_table
 from fastapi.responses import JSONResponse
+from src.services import domain as domain_service
 from asyncpg import Connection
 from typing import Optional
 
@@ -40,8 +41,8 @@ async def soft_delete_expired_urls(conn: Connection):
     await urls_table.soft_delete_expired_urls(conn)
 
 
-async def get_blacklist_urls(q: Optional[str], limit: int, offset: int, conn: Connection):
-    total, results = await url_blacklist_table.get_blacklist(q, limit, offset, conn)
+async def get_domains(q: Optional[str], is_secure: bool, limit: int, offset: int, conn: Connection):
+    total, results = await domains_table.get_domains(q, is_secure, limit, offset, conn)
     response = {
         "total": total,
         "limit": limit,
@@ -53,11 +54,9 @@ async def get_blacklist_urls(q: Optional[str], limit: int, offset: int, conn: Co
     return response
 
 
-async def add_to_blacklist_url(url: UrlBlackListCreate, conn: Connection):
-    await url_blacklist_table.add_url_to_blacklist(str(url.url), conn)
-    await url_blacklist_table.delete_blacklisted_urls(str(url.url), conn)
+async def create_domain(domain: DomainCreate, conn: Connection):
+    await domain_service.create_domain(domain, conn)
 
 
-async def remove_url_from_blacklist(url: UrlBlackListDelete, conn: Connection):
-    await url_blacklist_table.remove_url_from_blacklist(str(url.url), conn)
-
+async def delete_domain(domain: DomainDelete, conn: Connection):
+    await domain_service.delete_domain(domain, conn)

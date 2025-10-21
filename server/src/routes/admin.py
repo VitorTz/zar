@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import JSONResponse
 from src.db import get_db, db_count, db_version
 from src.schemas.user import UserPagination, UseDelete
-from src.schemas.urls import UrlBlackListCreate, UrlBlackListDelete, UrlBlacklistPagination
+from src.schemas.domain import DomainCreate, DomainDelete, DomainUpdate, DomainPagination
 from src.schemas.log import LogPagination, RateLimitLogPagination
 from src.schemas.admin import HealthReport
 from src.security import require_admin
@@ -122,30 +122,37 @@ async def get_rate_limit_logs(
     )
 
 
-
-# BLACKLIST
-
-@router.get("/url/blacklist", response_model=UrlBlacklistPagination)
-async def get_blacklist_urls(
+# DOMAINS
+@router.get("/url/domains", response_model=DomainPagination)
+async def get_domains(
     q: str = Query(default=None),
+    is_secure: bool = Query(default=True),
     limit: int = Query(default=64, ge=1, le=64),
     offset: int = Query(default=0, ge=0),
     conn: Connection = Depends(get_db)
 ):
-    return await admin_service.get_blacklist_urls(q, limit, offset, conn)
+    return await admin_service.get_domains(q, is_secure, limit, offset, conn)
 
 
-@router.post("/url/blacklist", status_code=status.HTTP_201_CREATED)
-async def add_url_to_blacklist(
-    url: UrlBlackListCreate,
+@router.post("/url/domains", status_code=status.HTTP_201_CREATED)
+async def create_domain(
+    url: DomainCreate,
     conn: Connection = Depends(get_db)
 ):
-    await admin_service.add_to_blacklist_url(url, conn)
+    await admin_service.create_domain(url, conn)
 
 
-@router.delete("/url/blacklist", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_url_from_blacklist(
-    url: UrlBlackListDelete, 
+@router.delete("/url/domains", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_domain(
+    url: DomainDelete, 
     conn: Connection = Depends(get_db)
 ):
-    await admin_service.remove_url_from_blacklist(url, conn)
+    await admin_service.delete_domain(url, conn)
+
+
+@router.update("/url/domains")
+async def update_domain(
+    domain: DomainUpdate,
+    conn: Connection = Depends(get_db)
+):
+    pass

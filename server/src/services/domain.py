@@ -1,17 +1,23 @@
+from src.constants import Constants
 from src.globals import Globals
 from asyncpg import Connection
-from src.constants import Constants
-from src.schemas.urls import UrlBlackListCreate
-from src.tables import url_blacklist as url_blacklist_table
+from src.schemas.domain import DomainCreate, DomainDelete
+from src.tables import domains as domains_table
+from src.tables import urls as urls_table
 import httpx
 
 
-async def create_url_blacklist(url: UrlBlackListCreate, conn: Connection):
-    await url_blacklist_table.add_url_to_blacklist(url, conn)
-    await url_blacklist_table.delete_blacklisted_urls(url)
+async def create_domain(domain: DomainCreate, conn: Connection):
+    await domains_table.create_domain(str(domain.url), domain.is_secure, conn)
+    if not domain.is_secure:
+        await urls_table.delete_urls_by_domain(conn)
 
 
-async def url_is_in_blacklist(url: str, conn: Connection) -> bool:
+async def delete_domain(domain: DomainDelete, conn: Connection):
+    await domains_table.delete_domain_by_id(domain.id, conn)
+
+
+async def is_secure_domain(url: str, conn: Connection) -> bool:
     cache_key = f"safe_browsing:{url}"
     
     # Short time storage
@@ -20,7 +26,7 @@ async def url_is_in_blacklist(url: str, conn: Connection) -> bool:
         return cached == "safe"
     
     # Long time storage
-    if await url_blacklist_table.is_url_in_blacklist(url, conn):
+    if await domains_table.is_safe_domain(url, conn):
         return False
     
     body = {
@@ -46,7 +52,7 @@ async def url_is_in_blacklist(url: str, conn: Connection) -> bool:
 
             if data.get("matches"):
                 await Globals.redis_client.setex(cache_key, Constants.SAFE_CACHE_TTL, "unsafe")
-                await url_blacklist_table.add_url_to_blacklist(url, conn)
+                await domains_table.create_domain(url, False, conn)
                 return False
 
             await Globals.redis_client.setex(cache_key, Constants.SAFE_CACHE_TTL, "safe")

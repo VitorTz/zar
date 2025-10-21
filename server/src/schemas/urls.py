@@ -103,35 +103,3 @@ class UrlAnalyticPagination(BaseModel):
     pages: int
     results: List[UrlAnalytic]
 
-
-class UrlStats(BaseModel):
-
-    pass
-
-
-class UrlBlacklist(BaseModel):
-
-    id: int
-    url: str
-    url_hash: bytes
-    created_at: str
-
-
-class UrlBlacklistPagination(BaseModel):
-
-    total: int
-    limit: int
-    offset: int
-    page: int
-    pages: int
-    results: List[UrlBlacklist]
-
-
-class UrlBlackListCreate(BaseModel):
-
-    url: str
-
-
-class UrlBlackListDelete(BaseModel):
-
-    url: str

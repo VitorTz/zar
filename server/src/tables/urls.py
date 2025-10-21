@@ -508,3 +508,32 @@ async def soft_delete_expired_urls(conn: Connection) -> None:
             expires_at < NOW() AND 
             is_active = TRUE;
     """)
+    
+
+async def delete_unsafe_urls(conn: Connection):
+    await conn.execute(
+        """
+        DELETE FROM 
+            urls
+        USING 
+            domains
+        WHERE 
+            domains.id = urls.domain_id AND
+            domains.is_secure = FALSE
+        """
+    )
+
+
+async def delete_urls_by_domain(domain_id: int, conn: Connection):
+    await conn.execute(
+        """
+        DELETE FROM 
+            urls
+        USING 
+            domains
+        WHERE 
+            domains.id = urls.domain_id AND
+            domains.id = $1
+        """,
+        domain_id
+    )
