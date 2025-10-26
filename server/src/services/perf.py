@@ -1,5 +1,6 @@
 from fastapi.responses import HTMLResponse, JSONResponse
 from src.perf.system_monitor import get_monitor
+from src.schemas.reports import SystemReport
 from datetime import datetime, timezone
 
 
@@ -121,7 +122,7 @@ async def clear_metrics():
     return {"message": "Metrics history cleared successfully"}
 
 
-async def generate_full_report() -> dict:
+async def generate_full_report() -> SystemReport:
     monitor = get_monitor()
         
     process_info = monitor.get_process_info()
@@ -131,7 +132,7 @@ async def generate_full_report() -> dict:
     network_info = monitor.get_network_info()
     history = monitor.get_history(metric="all")    
     analysis = generate_analysis(memory_info, cpu_info, process_info)
-        
+    
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "report_period": {
@@ -220,12 +221,12 @@ async def generate_full_report() -> dict:
         }
     }
     
-    return report
+    return SystemReport(**report)
 
 
 async def generate_metric_html_report():
-    report = await generate_full_report()
-    
+    report: SystemReport = await generate_full_report()
+
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -343,11 +344,11 @@ async def generate_metric_html_report():
             <h1>📊 System Monitor Report</h1>
             
             <div style="text-align: center; margin: 30px 0;">
-                <div class="status {report['executive_summary']['health_status'].lower()}">
-                    {report['executive_summary']['health_status'].upper()}
+                <div class="status {report.executive_summary.health_status.lower()}">
+                    {report.executive_summary.health_status.upper()}
                 </div>
-                <div class="score {'high' if report['executive_summary']['overall_score'] >= 80 else 'medium' if report['executive_summary']['overall_score'] >= 60 else 'low'}">
-                    {report['executive_summary']['overall_score']}/100
+                <div class="score {'high' if report.executive_summary.overall_score >= 80 else 'medium' if report.executive_summary.overall_score >= 60 else 'low'}">
+                    {report.executive_summary.overall_score}/100
                 </div>
                 <p style="color: #7f8c8d;">Overall Health Score</p>
             </div>
@@ -356,13 +357,13 @@ async def generate_metric_html_report():
             <div class="recommendations">
                 <h3 style="margin-bottom: 10px;">Key Findings:</h3>
                 <ul>
-                    {"".join(f"<li>{finding}</li>" for finding in report['executive_summary']['key_findings'])}
+                    {"".join(f"<li>{finding}</li>" for finding in report.executive_summary.key_findings)}
                 </ul>
                 
                 {f'''<h3 style="margin-top: 15px; margin-bottom: 10px;">Recommendations:</h3>
                 <ul>
-                    {"".join(f"<li>{rec}</li>" for rec in report['executive_summary']['recommendations'])}
-                </ul>''' if report['executive_summary']['recommendations'] else ''}
+                    {"".join(f"<li>{rec}</li>" for rec in report.executive_summary.recommendations)}
+                </ul>''' if report.executive_summary.recommendations else ''}
             </div>
             
             <h2>⚡ Process Metrics</h2>
@@ -370,25 +371,25 @@ async def generate_metric_html_report():
                 <div class="metric-card">
                     <h3>Uptime</h3>
                     <div class="metric-value">
-                        {report['process_metrics']['uptime']['formatted']}
+                        {report.process_metrics.uptime.formatted}
                     </div>
                 </div>
                 <div class="metric-card">
                     <h3>Total Requests</h3>
                     <div class="metric-value">
-                        {report['process_metrics']['requests']['total']:,}
+                        {report.process_metrics.requests.total:,}
                     </div>
                 </div>
                 <div class="metric-card">
                     <h3>Error Rate</h3>
                     <div class="metric-value">
-                        {report['process_metrics']['requests']['error_rate_percent']}<span class="metric-unit">%</span>
+                        {report.process_metrics.requests.error_rate_percent}<span class="metric-unit">%</span>
                     </div>
                 </div>
                 <div class="metric-card">
                     <h3>Avg Response Time</h3>
                     <div class="metric-value">
-                        {report['process_metrics']['response_times'].get('avg', 0)}<span class="metric-unit">ms</span>
+                        {report.process_metrics.response_times.avg}<span class="metric-unit">ms</span>
                     </div>
                 </div>
             </div>
@@ -398,28 +399,28 @@ async def generate_metric_html_report():
                 <div class="metric-card">
                     <h3>Process Memory</h3>
                     <div class="metric-value">
-                        {report['memory_metrics']['process']['rss_mb']}<span class="metric-unit">MB</span>
+                        {report.memory_metrics.process.rss_mb}<span class="metric-unit">MB</span>
                     </div>
                     <p style="margin-top: 10px; color: #7f8c8d; font-size: 14px;">
-                        {report['memory_metrics']['process']['percent']}% of system
+                        {report.memory_metrics.process.percent}% of system
                     </p>
                 </div>
                 <div class="metric-card">
                     <h3>Peak Memory</h3>
                     <div class="metric-value">
-                        {report['memory_metrics']['process']['peak_mb']}<span class="metric-unit">MB</span>
+                        {report.memory_metrics.process.peak_mb}<span class="metric-unit">MB</span>
                     </div>
                 </div>
                 <div class="metric-card">
                     <h3>System Available</h3>
                     <div class="metric-value">
-                        {report['memory_metrics']['system']['available_mb']}<span class="metric-unit">MB</span>
+                        {report.memory_metrics.system.available_mb}<span class="metric-unit">MB</span>
                     </div>
                 </div>
                 <div class="metric-card">
                     <h3>Python Objects</h3>
                     <div class="metric-value">
-                        {report['memory_metrics']['python']['objects_count']:,}
+                        {report.memory_metrics.python.objects_count:,}
                     </div>
                 </div>
             </div>
@@ -429,25 +430,25 @@ async def generate_metric_html_report():
                 <div class="metric-card">
                     <h3>Process CPU</h3>
                     <div class="metric-value">
-                        {report['cpu_metrics']['process']['percent']}<span class="metric-unit">%</span>
+                        {report.cpu_metrics.process.percent}<span class="metric-unit">%</span>
                     </div>
                 </div>
                 <div class="metric-card">
                     <h3>Peak CPU</h3>
                     <div class="metric-value">
-                        {report['cpu_metrics']['process']['peak_percent']}<span class="metric-unit">%</span>
+                        {report.cpu_metrics.process.peak_percent}<span class="metric-unit">%</span>
                     </div>
                 </div>
                 <div class="metric-card">
                     <h3>System CPU</h3>
                     <div class="metric-value">
-                        {report['cpu_metrics']['system']['percent_total']}<span class="metric-unit">%</span>
+                        {report.cpu_metrics.system.percent_total}<span class="metric-unit">%</span>
                     </div>
                 </div>
                 <div class="metric-card">
                     <h3>Threads</h3>
                     <div class="metric-value">
-                        {report['cpu_metrics']['process']['num_threads']}
+                        {report.cpu_metrics.process.num_threads}
                     </div>
                 </div>
             </div>
@@ -457,40 +458,39 @@ async def generate_metric_html_report():
                 <div class="metric-card">
                     <h3>Disk Usage</h3>
                     <div class="metric-value">
-                        {report['disk_metrics']['usage']['percent']}<span class="metric-unit">%</span>
+                        {report.disk_metrics.usage.percent}<span class="metric-unit">%</span>
                     </div>
                     <p style="margin-top: 10px; color: #7f8c8d; font-size: 14px;">
-                        {report['disk_metrics']['usage']['free_gb']} GB free
+                        {report.disk_metrics.usage.free_gb} GB free
                     </p>
                 </div>
                 <div class="metric-card">
                     <h3>Network Traffic</h3>
                     <div class="metric-value">
-                        {report['network_metrics']['analysis']['total_traffic_mb']}<span class="metric-unit">MB</span>
+                        {report.network_metrics.analysis.total_traffic_mb}<span class="metric-unit">MB</span>
                     </div>
                 </div>
                 <div class="metric-card">
                     <h3>Active Connections</h3>
                     <div class="metric-value">
-                        {report['network_metrics']['connections']['active']}
+                        {report.network_metrics.connections.active}
                     </div>
                 </div>
                 <div class="metric-card">
                     <h3>Network Errors</h3>
                     <div class="metric-value">
-                        {report['network_metrics']['analysis']['error_rate']}<span class="metric-unit">%</span>
+                        {report.network_metrics.analysis.error_rate}<span class="metric-unit">%</span>
                     </div>
                 </div>
             </div>
             
             <div class="timestamp">
-                Generated at: {report['generated_at']}<br>
-                Monitoring interval: {report['metadata']['monitoring_interval_seconds']}s | 
-                History points: {report['metadata']['history_size']}
+                Generated at: {report.generated_at}<br>
+                Monitoring interval: {report.metadata.monitoring_interval_seconds}s | 
+                History points: {report.metadata.history_size}
             </div>
         </div>
     </body>
     </html>
     """
-    
     return HTMLResponse(content=html_content)

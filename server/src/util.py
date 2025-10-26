@@ -3,12 +3,10 @@ from src.schemas.client_info import ClientInfo
 from fastapi import Request
 from pathlib import Path
 from asyncpg import Connection
-from urllib.parse import urlparse
 from src.s3 import S3
-import ipaddress
-import socket
+from datetime import datetime, timezone
+from typing import Optional
 import uuid
-import aiohttp
 import segno
 import random
 import string
@@ -88,3 +86,35 @@ async def create_qrcode(data: str):
     url = await S3().upload_qrcode(path, random_id)
     os.remove(str(path))
     return url
+
+
+def seconds_until(target: datetime) -> int:
+    if target.tzinfo is None:
+        target = target.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    diff = (target - now).total_seconds()
+    return int(diff) if diff > 0 else 0
+
+
+def json_default(obj):
+    if isinstance(obj, (datetime,)):
+        return obj.isoformat()
+    if isinstance(obj, (uuid.UUID,)):
+        return str(obj)
+    if isinstance(obj, (bytes, bytearray)):
+        return obj.hex()
+    raise TypeError(f"Type {type(obj)} not serializable")
+
+
+def convert_record_to_json(record: dict) -> str:
+    return json.dump(record, default=json_default)
+
+
+def convert_records_to_json(records: list[dict]) -> str:
+    return json.dumps(records, default=json_default)
+
+
+def datetime_has_expired(expires_at: Optional[datetime]) -> bool:
+    if expires_at and isinstance(expires_at, datetime):
+        return expires_at < datetime.now(timezone.utc)
+    return False

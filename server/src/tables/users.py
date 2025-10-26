@@ -1,21 +1,21 @@
-from src.schemas.user import User, UserLoginData
-from src.schemas.urls import URLResponse
+from src.schemas.user import User, UserLoginData, UserSession, UserCreate
+from src.schemas.pagination import Pagination
+from src.schemas.token import Token
+from src.schemas.client_info import ClientInfo
 from asyncpg import Connection
 from uuid import UUID
 from datetime import datetime
+from typing import Optional
 
 
-async def get_user(user_id: str | UUID, conn: Connection) -> User | None:
+async def get_user(user_id: str | UUID, conn: Connection) -> Optional[User]:
     r = await conn.fetchrow(
         """
             SELECT
-                id::text,
-                email,
-                is_active,
-                is_verified,
-                TO_CHAR(last_login_at, 'DD-MM-YYYY HH24:MI:SS') as last_login_at,
-                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
-                TO_CHAR(updated_at, 'DD-MM-YYYY HH24:MI:SS') as updated_at
+                id,
+                email,                
+                last_login_at,
+                created_at
             FROM
                 users
             WHERE
@@ -24,22 +24,19 @@ async def get_user(user_id: str | UUID, conn: Connection) -> User | None:
         user_id
     )
 
-    return User(**dict(r)) if r is not None else None
+    return User(**dict(r)) if r else None
 
 
-async def get_users(limit: int, offset: int, conn: Connection) -> tuple[int, list[dict]]:
+async def get_users(limit: int, offset: int, conn: Connection) -> Pagination[User]:
     total: int = await conn.fetchval("SELECT COUNT(*) AS total FROM users")
     
     r = await conn.fetch(
         """
             SELECT
-                id::text,
+                id,
                 email,
-                is_active,
-                is_verified,
-                TO_CHAR(last_login_at, 'DD-MM-YYYY HH24:MI:SS') as last_login_at,
-                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
-                TO_CHAR(updated_at, 'DD-MM-YYYY HH24:MI:SS') as updated_at
+                last_login_at,
+                created_at
             FROM
                 users
             LIMIT 
@@ -51,59 +48,69 @@ async def get_users(limit: int, offset: int, conn: Connection) -> tuple[int, lis
         offset
     )
 
-    return total, [dict(i) for i in r]
+    return Pagination[User](
+        total=total,
+        limit=limit,
+        offset=offset,
+        results=[User(**dict(i)) for i in r]
+    )
 
 
-async def get_user_by_refresh_token(refresh_token: str, conn: Connection) -> User | None:
+async def get_user_by_refresh_token(refresh_token: str, conn: Connection) -> Optional[User]:
     r = await conn.fetchrow(
         """
-            SELECT
-                id::text,
-                email,
-                is_active,
-                is_verified,
-                TO_CHAR(last_login_at, 'DD-MM-YYYY HH24:MI:SS') as last_login_at,
-                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
-                TO_CHAR(updated_at, 'DD-MM-YYYY HH24:MI:SS') as updated_at
-            FROM
+            SELECT 
+                u.id,
+                u.email,
+                u.last_login_at,
+                u.created_at
+            FROM 
                 users u
-            JOIN
+            JOIN 
                 user_session_tokens rt ON rt.user_id = u.id
-            WHERE
-                rt.refresh_token = $1
+            WHERE 
+                rt.refresh_token = $1;
         """,
         refresh_token
     )
-    return User(**dict(r)) if r is not None else None
+    return User(**dict(r)) if r else None
 
 
-async def update_user_session_token(user_id: str, refresh_token: str, expires_at: datetime, conn: Connection):
+async def update_user_session_token(
+    user_id: UUID,
+    refresh_token: Token,   
+    conn: Connection
+):    
     await conn.execute(
         """
             UPDATE
                 user_session_tokens
             SET
                 expires_at = $1,
-                revoked = FALSE,
-                revoked_at = NULL,
+                revoked = $2,
+                revoked_at = $3,
                 last_used_at = NOW()
             WHERE
-                user_id = $2 AND
-                refresh_token = $3
+                user_id = $4 AND
+                refresh_token = $5
         """,
-        expires_at,
+        refresh_token.expires_at,
+        refresh_token.revoked,
+        refresh_token.revoked_at,
         user_id,
-        refresh_token
+        refresh_token.token
     )
 
 
-async def get_user_login_data(email: str, conn: Connection) -> UserLoginData:
+async def get_user_login_data_from_email(email: str, conn: Connection) -> Optional[UserLoginData]:
     r = await conn.fetchrow(
         """
             SELECT
-                u.id::text,
+                u.id,
                 u.email,
                 u.p_hash,
+                u.created_at,
+                u.last_login_at,
                 ul.attempts as login_attempts,
                 ul.last_failed_login,
                 ul.locked_until
@@ -112,15 +119,15 @@ async def get_user_login_data(email: str, conn: Connection) -> UserLoginData:
             JOIN
                 user_login_attempts ul ON ul.user_id = u.id
             WHERE
-                email = $1
+                email = TRIM($1)
         """,
-        email.lower().strip()
+        email
     )
 
-    return UserLoginData(**dict(r)) if r is not None else None
+    return UserLoginData(**dict(r)) if r else None
 
 
-async def create_user(email: str, p_hash: bytes, conn: Connection) -> User:
+async def create_user(new_user: UserCreate, conn: Connection) -> User:
     r = await conn.fetchrow(
         """
             INSERT INTO users (
@@ -128,82 +135,77 @@ async def create_user(email: str, p_hash: bytes, conn: Connection) -> User:
                 p_hash
             )
             VALUES  
-                (LOWER(TRIM($1)), $2)
+                (LOWER(TRIM($1)), decode(md5(TRIM($2)), 'hex'))
             RETURNING
-                id::text,
+                id,
                 email,
-                is_active,
-                is_verified,
-                TO_CHAR(last_login_at, 'DD-MM-YYYY HH24:MI:SS') as last_login_at,
-                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
-                TO_CHAR(updated_at, 'DD-MM-YYYY HH24:MI:SS') as updated_at
+                last_login_at,
+                created_at
         """,
-        email,
-        p_hash
+        new_user.email,
+        new_user.password
     )
 
     return User(**dict(r)) if r is not None else None
 
 
-async def user_email_exists(email: str, conn: Connection) -> bool:
-    r = await conn.fetchrow("SELECT id FROM users WHERE email = LOWER(TRIM($1))", email)
-    return r is not None
-
-
-async def update_user_login_attempts(
-    user_id: str | UUID, 
-    failed_login_attempts: int, 
-    last_failed_login: datetime, 
-    locked_until: datetime, 
-    conn: Connection
-) -> None:
-    if failed_login_attempts == 0:
-        await conn.execute(
-            """
-                UPDATE 
-                    user_login_attempts
-                SET
-                    attempts = $1,
-                    last_failed_login = $2,
-                    locked_until = $3,
-                    last_successful_login = NOW()
-                WHERE
-                    user_id = $4
-            """,
-            failed_login_attempts, 
-            last_failed_login, 
-            locked_until, 
-            user_id
-        )
-        return
-      
+async def register_failed_login_attempt(user_login_data: UserLoginData, conn: Connection) -> UserLoginData:
     await conn.execute(
         """
             UPDATE 
                 user_login_attempts
             SET
-                attempts = $1,
-                last_failed_login = $2,
-                locked_until = $3                
+                attempts = attempts + 1,
+                last_failed_login = CURRENT_TIMESTAMP,
+                locked_until = $1
             WHERE
-                user_id = $4
+                user_id = $2
         """,
-        failed_login_attempts, 
-        last_failed_login, 
-        locked_until, 
-        user_id
+        user_login_data.locked_until,
+        user_login_data.id
+    )
+    user_login_data.login_attempts += 1
+    return user_login_data
+
+
+async def lock_user_login(user_login_data: UserLoginData, conn: Connection):
+    await conn.execute(
+        """
+            UPDATE 
+                user_login_attempts
+            SET
+                locked_until = $1
+            WHERE
+                user_id = $2
+        """,
+        user_login_data.locked_until,
+        user_login_data.id
+    )
+
+
+async def reset_user_login_attempts(user_login_data: UserLoginData, conn: Connection):
+    await conn.execute(
+        """
+            UPDATE 
+                user_login_attempts
+            SET
+                attempts = 0,
+                last_failed_login = NULL,
+                locked_until = NULL,
+                last_successful_login = CURRENT_TIMESTAMP
+            WHERE
+                user_id = $1
+        """,
+        user_login_data.id
     )
 
 
 async def create_user_session_token(
     user_id: str,
-    refresh_token: str,
-    expires_at: datetime,
-    device_name: str | None,
-    device_ip: str | None,
-    user_agent: str | None,
+    token: Token,
+    client_info: ClientInfo,
     conn: Connection
-) -> bool:
+) -> None:
     await conn.execute(
         """
             INSERT INTO user_session_tokens (
@@ -225,15 +227,20 @@ async def create_user_session_token(
                 last_used_at = NOW()
         """,
         user_id, 
-        refresh_token, 
-        expires_at,
-        device_name,
-        device_ip,
-        user_agent
+        token.token, 
+        token.expires_at,
+        client_info.device_name,
+        client_info.client_ip,
+        client_info.user_agent
     )
 
 
-async def get_user_sessions(user_id: str | UUID, limit: int, offset: int, conn: Connection) -> tuple[int, list[dict]]:
+async def get_user_sessions(
+    user_id: str | UUID, 
+    limit: int, 
+    offset: int,
+    conn: Connection
+) -> Pagination[UserSession]:
     total: int = await conn.fetchval(
         "SELECT COUNT(*) AS total FROM user_session_tokens WHERE user_id = $1", 
         user_id
@@ -242,15 +249,15 @@ async def get_user_sessions(user_id: str | UUID, limit: int, offset: int, conn: 
     r = await conn.fetch(
         """
             SELECT
-                user_id::text,
-                TO_CHAR(issued_at, 'DD-MM-YYYY HH24:MI:SS') as issued_at,
-                TO_CHAR(expires_at, 'DD-MM-YYYY HH24:MI:SS') as expires_at,
+                user_id,
+                issued_at,
+                expires_at,
                 revoked,
-                TO_CHAR(revoked_at, 'DD-MM-YYYY HH24:MI:SS') as revoked_at,
+                revoked_at,
                 device_name,
-                device_ip::text,
+                device_ip,
                 user_agent,
-                TO_CHAR(last_used_at, 'DD-MM-YYYY HH24:MI:SS') as last_used_at
+                last_used_at
             FROM
                 user_session_tokens
             WHERE
@@ -267,7 +274,12 @@ async def get_user_sessions(user_id: str | UUID, limit: int, offset: int, conn: 
         offset
     )
 
-    return total, [dict(i) for i in r]
+    return Pagination[UserSession](
+        total=total,
+        limit=limit,
+        offset=offset,
+        results=[UserSession(**dict(i)) for i in r]
+    )
 
 
 async def delete_user_session_token(refresh_token: str, conn: Connection):
@@ -316,38 +328,18 @@ async def update_user_last_login_at(user_id: str, conn: Connection):
         user_id
     )
 
-async def delete_user_url(user_id: str, short_code: str, conn: Connection):
+async def delete_user_url(user_id: str, url_id: int, conn: Connection):
     await conn.execute(
         """
             DELETE FROM
                 urls
             WHERE
                 user_id = $1 AND
-                short_code = $2
+                url_id = $2
         """,
         user_id,
-        short_code
+        url_id
     )
-
-
-
-async def assign_url_to_user(url: URLResponse, user_id: str, conn: Connection):
-    if url.user_id is None:
-        await conn.execute(
-            """
-                INSERT INTO user_urls (
-                    url_id,
-                    user_id
-                ) 
-                VALUES
-                    ($1, $2)
-                ON CONFLICT
-                    (url_id, user_id)
-                DO NOTHING
-            """,
-            url.id,
-            user_id
-        )
 
 
 async def set_user_favorite_url(user_id: str, url_id: int, is_favorite: bool, conn: Connection):
@@ -365,25 +357,3 @@ async def set_user_favorite_url(user_id: str, url_id: int, is_favorite: bool, co
         user_id,
         url_id
     )
-
-
-async def get_user_stats(user_id: str, conn: Connection) -> dict | None:
-    r = await conn.fetchrow(
-        """
-            SELECT 
-                id::text,
-                email,
-                TO_CHAR(member_since, 'DD-MM-YYYY HH24:MI:SS') as member_since,
-                total_urls,
-                favorite_urls,
-                total_clicks,
-                TO_CHAR(last_url_created, 'DD-MM-YYYY HH24:MI:SS') as last_url_created,
-                TO_CHAR(last_click_received, 'DD-MM-YYYY HH24:MI:SS') as last_click_received
-            FROM 
-                v_user_stats 
-            WHERE 
-                id = $1;
-        """, 
-        user_id
-    )
-    return dict(r) if r else None

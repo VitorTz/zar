@@ -6,7 +6,15 @@
 ------------------------------------------------
 ----                [DROPS]                 ----
 ------------------------------------------------
-
+-- DROP TABLE IF EXISTS users CASCADE;
+-- DROP TABLE IF EXISTS domains CASCADE;
+-- DROP TABLE IF EXISTS urls CASCADE;
+-- DROP TABLE IF EXISTS url_tags CASCADE;
+-- DROP TABLE IF EXISTS url_tag_relations CASCADE;
+-- DROP TABLE IF EXISTS url_analytics CASCADE;
+-- DROP TABLE IF EXISTS logs CASCADE;
+-- DROP TABLE IF EXISTS rate_limit_logs CASCADE;
+-- DROP FUNCTION increment_url_clicks CASCADE;
 ------------------------------------------------
 ----             [EXTENSIONS]               ----
 ------------------------------------------------
@@ -19,7 +27,6 @@ CREATE EXTENSION IF NOT EXISTS btree_gin;
 ------------------------------------------------
 
 -------------[GENERATE SHORT CODE]--------------
-DROP FUNCTION generate_short_code CASCADE;
 CREATE OR REPLACE FUNCTION generate_short_code(p_length INT DEFAULT 8)
 RETURNS TEXT AS $$
 DECLARE
@@ -42,29 +49,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 ------------------------------------------------
-
-----------------[LOGIN ATTEMPTS]----------------
--- Função para criar registro de tentativas de login
-CREATE OR REPLACE FUNCTION create_user_login_attempt()
-RETURNS TRIGGER AS $$
-BEGIN
-    INSERT INTO user_login_attempts (user_id)
-    VALUES (NEW.id)
-    ON CONFLICT (user_id) DO NOTHING;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
 ------------------------------------------------
 
 ------------------[URL CLICKS]------------------
 -- Função para incrementar clicks atomicamente
-CREATE OR REPLACE FUNCTION increment_url_clicks(p_short_code TEXT)
+CREATE OR REPLACE FUNCTION increment_url_clicks(p_url_id BIGINT)
 RETURNS void AS $$
 BEGIN
-    UPDATE urls 
-    SET clicks = clicks + 1,
+    UPDATE 
+        urls
+    SET 
+        clicks = clicks + 1,
         last_clicked_at = NOW()
-    WHERE short_code = p_short_code;
+    WHERE 
+        id = p_url_id;
 END;
 $$ LANGUAGE plpgsql;
 ------------------------------------------------
@@ -109,16 +107,11 @@ CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email CITEXT NOT NULL,
     p_hash BYTEA NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE NOT NULL,
-    is_verified BOOLEAN DEFAULT FALSE NOT NULL,
     last_login_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT users_unique_email_cstr UNIQUE (email),
     CONSTRAINT user_check_email CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
 );
-
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
 
 ------------------------------------------------
@@ -183,7 +176,6 @@ CREATE TABLE IF NOT EXISTS urls (
     title TEXT,
     clicks INTEGER DEFAULT 0 NOT NULL,
     last_clicked_at TIMESTAMPTZ,
-    qrcode_url TEXT,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     expires_at TIMESTAMPTZ,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
@@ -197,6 +189,17 @@ CREATE INDEX IF NOT EXISTS idx_urls_expires_at ON urls(expires_at) WHERE expires
 CREATE INDEX IF NOT EXISTS idx_urls_clicks ON urls(clicks DESC) WHERE is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_urls_timestamps ON urls(created_at DESC, last_clicked_at DESC) WHERE is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_urls_active_clicks ON urls(id, clicks) WHERE is_active = TRUE;
+
+CREATE INDEX IF NOT EXISTS idx_urls_query_cover
+ON 
+    urls(domain_id, id, short_code, clicks, title, created_at, expires_at)
+INCLUDE 
+    (p_hash)
+WHERE 
+    is_active = TRUE 
+    AND p_hash IS NULL 
+    AND expires_at IS NULL 
+    AND title IS NULL;
 
 
 ------------------------------------------------
@@ -212,6 +215,7 @@ CREATE TABLE IF NOT EXISTS user_urls (
     FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_user_urls_user_favorite ON user_urls(user_id, is_favorite);
+CREATE INDEX IF NOT EXISTS idx_user_urls_url_id ON user_urls(url_id);
 
 ------------------------------------------------
 ----               [URL TAGS]               ----
@@ -289,6 +293,21 @@ CREATE INDEX IF NOT EXISTS idx_logs_created_at ON logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_logs_user ON logs(user_id) WHERE user_id IS NOT NULL;
 
+
+------------------------------------------------
+----             [PERF LOGS]                ----
+------------------------------------------------
+CREATE TABLE IF NOT EXISTS time_perf (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    perf_type TEXT NOT NULL,
+    perf_subtype TEXT,
+    execution_time DOUBLE PRECISION NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_time_perf_type ON time_perf(perf_type);
+CREATE INDEX IF NOT EXISTS idx_time_perf_created_at ON time_perf(created_at);
+
 ------------------------------------------------
 ----           [RATE LIMIT LOGS]            ----
 ------------------------------------------------
@@ -331,8 +350,18 @@ EXECUTE FUNCTION auto_generate_short_code();
 
 
 ----------------[LOGIN ATTEMPTS]----------------
+
 -- Cria um novo registro em user_login_attemps
--- para um  novo usuário
+CREATE OR REPLACE FUNCTION create_user_login_attempt()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO user_login_attempts (user_id)
+    VALUES (NEW.id)
+    ON CONFLICT (user_id) DO NOTHING;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -346,26 +375,3 @@ BEGIN
     END IF;
 END$$;
 ------------------------------------------------
-
-------------------[UPDATED AT]------------------
--- Trigger para atualizar updated_at automaticamente
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_trigger 
-        WHERE tgname = 'trg_users_updated_at'
-    ) THEN
-        CREATE TRIGGER trg_users_updated_at
-        BEFORE UPDATE ON users
-        FOR EACH ROW
-        EXECUTE FUNCTION update_updated_at_column();
-    END IF;
-END$$;

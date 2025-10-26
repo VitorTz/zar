@@ -1,27 +1,27 @@
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
 from typing import Optional, List
+from uuid import UUID
 
 
 class User(BaseModel):
 
-    id: str
+    id: UUID
     email: str
-    last_login_at: Optional[str] = None
-    is_active: bool
-    is_verified: bool
-    updated_at: str
-    created_at: str
+    last_login_at: Optional[datetime] = None
+    created_at: datetime
 
 
 class UserLoginData(BaseModel):
 
-    id: str
+    id: UUID
     email: str
     p_hash: bytes
     login_attempts: int
-    last_failed_login: Optional[datetime]
-    locked_until: Optional[datetime]
+    last_login_at: Optional[datetime] = None
+    last_failed_login: Optional[datetime] = None
+    locked_until: Optional[datetime] = None
+    created_at: datetime
 
 
 class UserCreate(BaseModel):
@@ -46,15 +46,15 @@ class UserLoginAttempt(BaseModel):
 
 class UserSession(BaseModel):
 
-    user_id: str
-    issued_at: str
-    expires_at: str
+    user_id: UUID
+    issued_at: datetime
+    expires_at: datetime
     revoked: bool
-    revoked_at: Optional[str]
-    device_name: Optional[str]
+    revoked_at: Optional[datetime] = None
+    device_name: Optional[str] = None
     device_ip: str
-    user_agent: Optional[str]
-    last_used_at: str
+    user_agent: Optional[str] = None
+    last_used_at: datetime
 
 
 class UserSessionPagination(BaseModel):
@@ -77,7 +77,7 @@ class UserPagination(BaseModel):
     results: List[User]
 
 
-class UseDelete(BaseModel):
+class UserDelete(BaseModel):
 
     user_id: str
 

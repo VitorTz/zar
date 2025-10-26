@@ -1,34 +1,92 @@
+from src.schemas.domain import Domain, DomainCreate, DomainUpdate
+from src.schemas.pagination import Pagination
 from asyncpg import Connection
 from typing import Optional
 
 
-async def get_domain_id(url: str, conn: Connection, is_secure: bool = True) -> int:
-    domain_id: int = conn.fetchval(
+async def get_domain(url: str, conn: Connection) -> Optional[Domain]:
+    r = await conn.fetchrow(
         """
-            WITH ins AS (
-                INSERT INTO domains (
-                    url, 
-                    url_hash,
-                    is_secure
-                )
-                VALUES 
-                    (TRIM($1), decode(md5(TRIM($2)), 'hex'), $3)
-                ON CONFLICT
-                    (url_hash)
-                DO NOTHING
-                RETURNING 
-                    id
-            )
-            SELECT 
-                id FROM ins UNION
-            SELECT 
-                id 
+            SELECT
+                id,
+                url,
+                url_hash,
+                is_secure
             FROM
-                domains 
-            WHERE 
-                url_hash = decode(md5(TRIM($2)), 'hex')
+                domains
+            WHERE
+                url_hash = decode(md5(TRIM($1)), 'hex')
         """,
-        url,
+        url
+    )
+    return Domain(**dict(r)) if r else None
+
+
+async def get_domain(url: str, conn: Connection) -> Domain:
+    r = await conn.fetchrow(
+        """
+        WITH ins AS (
+            INSERT INTO domains (
+                url, 
+                url_hash
+            )
+            VALUES 
+                (TRIM($1), decode(md5(TRIM($1)), 'hex'))
+            ON CONFLICT (url_hash)
+            DO NOTHING
+            RETURNING 
+                id,
+                url,
+                url_hash,
+                is_secure
+        )
+        SELECT 
+            id,
+            url,
+            url_hash,
+            is_secure
+        FROM ins
+        UNION
+        SELECT 
+            id,
+            url,
+            url_hash,
+            is_secure
+        FROM domains 
+        WHERE url_hash = decode(md5(TRIM($1)), 'hex')
+        """,
+        url
+    )
+    return Domain(**dict(r))
+
+
+async def get_domain_id(url: str, conn: Connection, is_secure: bool = True) -> int:
+    domain_id: int = await conn.fetchval(
+        """
+        WITH ins AS (
+            INSERT INTO domains (
+                url, 
+                url_hash,
+                is_secure
+            )
+            VALUES 
+                (TRIM($1), decode(md5(TRIM($1)), 'hex'), $2)
+            ON CONFLICT (url_hash)
+            DO NOTHING
+            RETURNING id
+        )
+        SELECT 
+            id 
+        FROM 
+            ins
+        UNION
+        SELECT 
+            id 
+        FROM 
+            domains 
+        WHERE 
+            url_hash = decode(md5(TRIM($1)), 'hex')
+        """,
         url,
         is_secure
     )
@@ -37,31 +95,60 @@ async def get_domain_id(url: str, conn: Connection, is_secure: bool = True) -> i
 
 async def is_safe_domain(url: str, conn: Connection) -> bool:
     r = await conn.fetchrow(
-        "SELECT is_secure FROM domains WHERE url_hash = decode(md5(TRIM($1))",
+        """
+            SELECT 
+                is_secure 
+            FROM 
+                domains 
+            WHERE 
+                url_hash = decode(md5(TRIM($1)), 'hex')
+            """,
         url
     )
     return r['is_secure'] if r else None
 
 
-async def create_domain(url: str, is_secure: bool, conn: Connection):
-    await conn.execute(
+async def create_domain(domain: DomainCreate, conn: Connection) -> Domain:
+    r = await conn.fetchrow(
         """
             INSERT INTO domains (
                 url,
                 url_hash,
                 is_secure
             )
-            VALUES
-                ($1, decode(md5(TRIM($2)), $3)
-            ON CONFLICT
+            VALUES (
+                $1,
+                decode(md5(TRIM($1)), 'hex'),
+                $2
+            )
+            ON CONFLICT 
                 (url_hash)
-            DO NOTHING
+            DO UPDATE SET
+                is_secure = EXCLUDED.is_secure
+            RETURNING
+                id,
+                url,
+                url_hash,
+                is_secure
         """,
-        url,
-        url,
-        is_secure
+        str(domain.url),
+        domain.is_secure
     )
+    return Domain(**dict(r))
 
+async def upsert_domain(domain_id: int, is_secure: bool, conn: Connection):
+    await conn.execute(
+        """
+        UPDATE
+            domains
+        SET
+            is_secure = $1
+        WHERE
+            id = $2        
+        """,
+        is_secure,
+        domain_id
+    )
 
 async def delete_domain_by_id(domain_id, conn: Connection):
     await conn.execute(
@@ -77,66 +164,96 @@ async def delete_domain_by_id(domain_id, conn: Connection):
 
 async def get_domains(
     url: Optional[str],
-    is_secure: Optional[bool],
     limit: int,
     offset: int,
     conn: Connection
-):
+) -> Pagination[Domain]:
     if url:
         total = await conn.fetchval(
             """
-            SELECT COUNT(*) 
-            FROM domains
-            WHERE url ILIKE $1
-              AND ($2 IS NULL OR is_secure = $2)
+            SELECT 
+                COUNT(*) 
+            FROM 
+                domains
+            WHERE 
+                url ILIKE $1
             """,
-            f"%{url}%",
-            is_secure
+            f"%{url}%"            
         )
         rows = await conn.fetch(
             """
             SELECT
                 id,
                 url,
-                url_hash::text,
+                url_hash,
                 similarity(url, $1) AS score,
                 is_secure
-            FROM domains
-            WHERE url ILIKE $1
-              AND ($2 IS NULL OR is_secure = $2)
-            ORDER BY score DESC
-            LIMIT $3
-            OFFSET $4
+            FROM 
+                domains
+            WHERE 
+                url ILIKE $1
+            ORDER BY 
+                score DESC
+            LIMIT 
+                $2
+            OFFSET 
+                $3
             """,
             f"%{url}%",
-            is_secure,
             limit,
             offset
         )
-        return total, [dict(r) for r in rows]
+        return Pagination(
+            total=total,
+            limit=limit,
+            offset=offset,
+            results=[Domain(**dict(r)) for r in rows]
+        )
 
     total = await conn.fetchval(
         """
-        SELECT COUNT(*)
-        FROM domains
-        WHERE ($1 IS NULL OR is_secure = $1)
-        """,
-        is_secure
+        SELECT
+            COUNT(*) as total
+        FROM
+            domains
+        """        
     )
+
     rows = await conn.fetch(
         """
         SELECT
             id,
             url,
-            url_hash::text,
+            url_hash,
             is_secure
-        FROM domains
-        WHERE ($1 IS NULL OR is_secure = $1)
-        LIMIT $2
-        OFFSET $3
+        FROM 
+            domains
+        LIMIT 
+            $1
+        OFFSET 
+            $2
         """,
-        is_secure,
         limit,
         offset
+    )    
+    return Pagination(
+        total=total,
+        limit=limit,
+        offset=offset,
+        results=[Domain(**dict(r)) for r in rows]
     )
-    return total, [dict(r) for r in rows]
+
+
+async def update_domain(domain: DomainUpdate, conn: Connection) -> None:
+    await conn.execute(
+        """
+            UPDATE 
+                domains
+            SET
+                is_secure = $1
+            WHERE
+                id = $2
+        """,
+        domain.is_secure,
+        domain.id
+    )

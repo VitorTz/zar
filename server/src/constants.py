@@ -8,8 +8,13 @@ load_dotenv()
 
 class Constants:
 
+    API_NAME = "TzHar - URL Shortener"
+    API_DESCR = "URL Shortener"
+    API_VERSION = "1.0.0"
     TMP_DIR = Path("tmp")
     LOG_DIR = Path("logs")
+
+    DEBUG_MODE = True
 
     MAX_REQUESTS = 200
     WINDOW = 30
@@ -40,11 +45,13 @@ class Constants:
     )    
 
     SECRET_KEY = os.getenv("SECRET_KEY")
+    ALGORITHM = os.getenv("ALGORITHM")
     ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+    
     MAX_BODY_SIZE = 20 * 1024 * 1024
     REFRESH_TOKEN_EXPIRE_DAYS = 7
-    ALGORITHM = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES = 60
+    ACCESS_TOKEN_EXPIRE_HOURS = 2
+
     MAX_FAILED_ATTEMPTS = 10
     LOCK_TIME_MINUTES = 16
     CACHE_EXPIRE_SECONDS = 60

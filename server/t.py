@@ -1,48 +1,8 @@
-from src.db import get_db_pool, db_init, db_close, db_count
-from asyncpg import Connection
-from src.security import sha256_bytes
-import asyncio
-import json
+from src.schemas.urls import URLAdminResponse
+import datetime
 
 
-async def main():
-    await db_init()
-    pool = get_db_pool()
-    conn: Connection = await pool.acquire()
-        
-    
-    with open("/mnt/HD/verified_online.json", "r") as file:
-        data = json.load(file)
-    
-    params = [x['url'] for x in data]
-    t = 0
-    t1 = await db_count('url_blacklist', conn)
-    for url in params:
-        await conn.execute(
-            """
-                INSERT INTO url_blacklist (
-                    url, 
-                    url_hash
-                )
-                VALUES 
-                    ($1, $2)
-                ON CONFLICT 
-                    (url_hash) 
-                DO NOTHING
-            """, 
-            url, 
-            sha256_bytes(url)
-        )
-        print(t)
-        t += 1
-        
-    t2 = await db_count('url_blacklist', conn)
-    print(t1)
-    print(t2)
+a = {'id': 1, 'original_url': 'https://kick.com/brtt', 'p_hash': None, 'short_url': 'http://localhost:8000/Nf15HKQX', 'short_code': 'Nf15HKQX', 'clicks': 0, 'title': None, 'qrcode_url': None, 'has_password': False, 'is_favorite': False, 'created_at': datetime.datetime(2025, 10, 25, 16, 8, 43, 658981, tzinfo=datetime.timezone.utc), 'expires_at': None}
 
-    await pool.release(conn)
-    await db_close()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+r = URLAdminResponse(**a)
+print(r)

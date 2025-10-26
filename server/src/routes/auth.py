@@ -1,10 +1,12 @@
-from src.schemas.user import User, UserLogin, UserSessionPagination, UserCreate
-from fastapi import APIRouter, Depends, Request, Query, Cookie
+from src.schemas.user import User, UserLogin, UserSession, UserCreate
+from src.schemas.pagination import Pagination
+from fastapi import APIRouter, Depends, Request, Query, Cookie, status
 from fastapi.responses import JSONResponse
 from src.security import get_user_from_token
 from src.services import auth as auth_service
 from src.db import get_db
 from asyncpg import Connection
+from typing import Optional
 
 
 router = APIRouter()
@@ -27,7 +29,7 @@ async def login(
     return await auth_service.login(user_login, request, conn)
 
 
-@router.get("/sessions", response_model=UserSessionPagination)
+@router.get("/sessions", response_model=Pagination[UserSession])
 async def get_manager_active_sessions(
     limit: int = Query(default=64, le=64, ge=1),
     offset: int = Query(default=0, ge=0),
@@ -38,13 +40,13 @@ async def get_manager_active_sessions(
 
 
 @router.post("/refresh", response_model=User)
-async def refresh_token_manager(refresh_token: str | None = Cookie(default=None), conn: Connection = Depends(get_db)):
+async def refresh_token_manager(refresh_token: Optional[str] = Cookie(default=None), conn: Connection = Depends(get_db)):
     return await auth_service.refresh_access_token(refresh_token, conn)
 
 
-@router.post("/signup")
+@router.post("/signup", status_code=status.HTTP_201_CREATED)
 async def signup(manager_signup: UserCreate, conn: Connection = Depends(get_db)):
-    return await auth_service.signup(manager_signup, conn)
+    await auth_service.signup(manager_signup, conn)
 
 
 @router.post("/logout")

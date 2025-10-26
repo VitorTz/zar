@@ -1,17 +1,17 @@
 from src.security import get_user_from_token
-from src.schemas.user import User, UserStats
-from src.schemas.urls import UrlPagination, URLDelete, CreateFavoriteURL, URLResponse, UrlShortCode
-from fastapi import APIRouter, Depends, Query, Request, status
+from src.schemas.user import User
+from src.schemas.urls import URLDelete, CreateFavoriteURL, URLResponse
+from src.schemas.pagination import Pagination
+from fastapi import APIRouter, Depends, Query, Request
 from asyncpg import Connection
 from src.db import get_db
 from src.services import user as user_service
-from src.services import dashboard as metrics_service
 
 
 router = APIRouter()
 
 
-@router.get("/urls", response_model=UrlPagination)
+@router.get("/url", response_model=Pagination[URLResponse])
 async def get_user_urls(
     request: Request,
     limit: int = Query(default=64, le=64, ge=0),
@@ -32,15 +32,6 @@ async def set_favorite_url(
     return await user_service.set_user_favorite_url(user, url, request, conn)
 
 
-@router.post("/url", status_code=status.HTTP_200_OK)
-async def assign_url_to_user(
-    url: UrlShortCode,
-    user: User | None = Depends(get_user_from_token),
-    conn: Connection = Depends(get_db)
-):
-    return await user_service.assign_url_to_user(user, url, conn)
-
-
 @router.delete("/url")
 async def delele_user_url(
     url: URLDelete, 
@@ -48,11 +39,3 @@ async def delele_user_url(
     conn: Connection = Depends(get_db)
 ):
     return await user_service.delete_user_url(user, url, conn)
-
-
-@router.get("/stats", response_model=UserStats)
-async def get_user_stats(
-    user: User = Depends(get_user_from_token),
-    conn: Connection = Depends(get_db)
-):
-    return await metrics_service.get_user_stats(user, conn)

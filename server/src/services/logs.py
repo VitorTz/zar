@@ -1,22 +1,24 @@
 from fastapi import Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
+from src.schemas.pagination import Pagination
+from src.schemas.log import Log, RateLimitViolation, DeletedLogs
 from src.tables import logs as logs_table
 from src.perf.system_monitor import get_monitor
 from src.db import get_db_pool
 from asyncpg import Connection
 from datetime import datetime, timezone, timedelta
 from src.constants import Constants
+from typing import Literal, Optional
 import traceback
-from typing import Literal
 
 
-async def log_and_build_response(
+async def log_error(
     request: Request,
     exc: Exception,
     error_level: Literal['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'],
     status_code: int,
     detail: dict | str
-) -> JSONResponse:
+):
     get_monitor().increment_error()
     tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
         
@@ -74,7 +76,16 @@ async def log_and_build_response(
                 await pool.release(conn)
             except Exception as e:
                 print(f"Failed to release DB connection: {e}")
-    
+
+
+async def log_and_build_response(
+    request: Request,
+    exc: Exception,
+    error_level: Literal['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'],
+    status_code: int,
+    detail: dict | str
+) -> JSONResponse:
+    await log_error(request, exc, error_level, status_code, detail)
     return JSONResponse(
         status_code=status_code,
         content={
@@ -124,22 +135,12 @@ async def log_rate_limit_violation(
 
 
 
-async def get_logs(limit: int, offset: int, conn: Connection):
-    total, results = await logs_table.get_logs(limit=limit, offset=offset, conn=conn)
-    response = {
-        "total": total,
-        "limit": limit,
-        "offset": offset,
-        "page": (offset // limit) + 1,
-        "pages": (total + limit - 1) // limit,
-        "results": results
-    }
-    return JSONResponse(response)
+async def get_logs(limit: int, offset: int, conn: Connection) -> Pagination[Log]:
+    return await logs_table.get_logs(limit=limit, offset=offset, conn=conn)
 
 
-async def delete_logs(interval_minutes: int | None, conn: Connection) -> Response:
-    deleted_logs = await logs_table.delete_logs(interval_minutes, conn)
-    return JSONResponse({"deleted": deleted_logs})
+async def delete_logs(interval_minutes: Optional[int], method: Optional[Literal['GET', 'PUT', 'POST', 'DELETE']], conn: Connection) -> DeletedLogs:
+    return await logs_table.delete_logs(interval_minutes, method, conn)    
 
 
 async def log_stats(conn: Connection) -> JSONResponse:
@@ -153,17 +154,8 @@ async def get_rate_limit_violations(
     offset: int,
     conn: Connection,
     ip_address: str = None
-) -> list[dict]:    
-    total, results = await logs_table.get_rate_limit_violations(hours, min_attempts, limit, offset, conn, ip_address)
-    response = {
-        "total": total,
-        "limit": limit,
-        "offset": offset,
-        "page": (offset // limit) + 1,
-        "pages": (total + limit - 1) // limit,
-        "results": results
-    }
-    return JSONResponse(content=response)
+) -> Pagination[RateLimitViolation]:
+    return await logs_table.get_rate_limit_violations(hours, min_attempts, limit, offset, conn, ip_address)
 
 
 async def cleanup_old_rate_limit_logs(hours: int, conn: Connection) -> int:

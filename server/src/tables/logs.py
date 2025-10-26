@@ -1,5 +1,7 @@
+from src.schemas.pagination import Pagination
+from src.schemas.log import Log, LogStats, LogLevelStat, LogStatusStat, LogMethodStat, LogDailyStat, LogHourlyStat, LogErrorEndpoint, RateLimitViolation, DeletedLogs
 from asyncpg import Connection
-from typing import Literal
+from typing import Literal, Optional
 import json
 
 
@@ -86,10 +88,9 @@ async def get_logs(
     limit: int,
     offset: int,
     conn: Connection
-) ->  tuple[int, list[dict]]:
+) -> Pagination[Log]:
     total: int = await conn.fetchval("SELECT COUNT(*) AS total FROM logs")
-
-    r = await conn.fetch(
+    rows = await conn.fetch(
         f"""
             SELECT 
                 id,
@@ -101,7 +102,7 @@ async def get_logs(
                 user_id,
                 stacktrace,
                 metadata,
-                to_char(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at
+                created_at
             FROM 
                 logs
             ORDER BY 
@@ -111,34 +112,42 @@ async def get_logs(
         """,
         limit,
         offset
+    )
+    return Pagination(
+        total=total,
+        limit=limit,
+        offset=offset,
+        results=[Log(**dict(i)) for i in rows]
     )    
-
-    return total, [dict(i) for i in r]
 
 
 async def delete_logs(
-    interval_minutes: int | None,
+    interval_minutes: Optional[int],
+    method: Optional[Literal['GET', 'PUT', 'POST', 'DELETE']],
     conn: Connection
-) -> int:
-    t1: int = await conn.fetchval("SELECT count(*) as total FROM logs")
+) -> DeletedLogs:
+    t1: int = await conn.fetchval("SELECT COUNT(*) FROM logs")
 
-    if interval_minutes is None:
-        await conn.execute("DELETE FROM logs")
-    else:
-        await conn.execute(
-            f"""
-                DELETE FROM 
-                    logs
-                WHERE
-                    created_at < NOW() - INTERVAL '{interval_minutes} minutes'
-            """
-        )
-    t2: int = await conn.fetchval("SELECT count(*) as total FROM logs")
+    base_query = "DELETE FROM logs WHERE TRUE"
+    params = []
 
-    return t1 - t2
+    if interval_minutes is not None:
+        base_query += " AND created_at < NOW() - ($1 * INTERVAL '1 minute')"
+        params.append(interval_minutes)
+
+    if method is not None:
+        param_index = len(params) + 1
+        base_query += f" AND method = ${param_index}"
+        params.append(method)
+
+    await conn.execute(base_query, *params)
+
+    t2: int = await conn.fetchval("SELECT COUNT(*) FROM logs")
+
+    return DeletedLogs(total=t1 - t2)
         
 
-async def get_log_stats(conn: Connection) -> dict:
+async def get_log_stats(conn: Connection) -> LogStats:
     # Estatísticas por nível
     level_stats = await conn.fetch("""
         SELECT 
@@ -181,7 +190,7 @@ async def get_log_stats(conn: Connection) -> dict:
     # Logs por dia (últimos 7 dias)
     daily_stats = await conn.fetch("""
         SELECT 
-            TO_CHAR(created_at, 'YYYY-MM-DD') AS date,
+            created_at AS date,
             COUNT(*) AS count
         FROM logs
         WHERE created_at >= NOW() - INTERVAL '7 days'
@@ -192,7 +201,7 @@ async def get_log_stats(conn: Connection) -> dict:
     # Logs por hora (últimas 24 horas)
     hourly_stats = await conn.fetch("""
         SELECT 
-            TO_CHAR(created_at, 'YYYY-MM-DD HH24:00') AS hour,
+            created_at AS hour,
             COUNT(*) AS count
         FROM 
             logs
@@ -215,14 +224,14 @@ async def get_log_stats(conn: Connection) -> dict:
         """
     )
 
-    return {
-        "by_level": [dict(row) for row in level_stats],
-        "by_status": [dict(row) for row in status_stats],
-        "by_method": [dict(row) for row in method_stats],
-        "by_day": [dict(row) for row in daily_stats],
-        "by_hour": [dict(row) for row in hourly_stats],
-        "error_endpoints": [dict(row) for row in error_endpoints]
-    }
+    return LogStats(
+        by_level=[LogLevelStat(**dict(row)) for row in level_stats],
+        by_status=[LogStatusStat(**dict(row)) for row in status_stats],
+        by_method=[LogMethodStat(**dict(row)) for row in method_stats],
+        by_day=[LogDailyStat(**dict(row)) for row in daily_stats],
+        by_hour=[LogHourlyStat(**dict(row)) for row in hourly_stats],
+        error_endpoints=[LogErrorEndpoint(**dict(row)) for row in error_endpoints]
+    )    
 
 
 async def get_rate_limit_violations(
@@ -232,7 +241,7 @@ async def get_rate_limit_violations(
     offset: int,
     conn: Connection,
     ip_address: str | None = None,
-) -> tuple[int, list[dict]]:
+) -> Pagination[RateLimitViolation]:
     if ip_address:
         r = await conn.fetch(
             f"""
@@ -317,9 +326,15 @@ async def get_rate_limit_violations(
     results = [dict(r) for r in r]
     total = results[0]['total_matching_records'] if results else 0
     for row in results:
-        row.pop('total_matching_records', None)        
-    
-    return total, results
+        row.pop('total_matching_records', None)
+
+
+    return Pagination(
+        total=total,
+        limit=limit,
+        offset=offset,
+        results=[RateLimitViolation(**dict(i)) for i in results]
+    )    
 
 
 async def delete_old_rate_limit_logs(hours: int, conn: Connection) -> int:

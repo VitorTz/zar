@@ -1,6 +1,7 @@
 from pydantic import BaseModel, HttpUrl
 from typing import List, Optional
 from datetime import datetime
+from uuid import UUID
 
 
 class ExpiredUrl(BaseModel):
@@ -34,20 +35,37 @@ class CreateFavoriteURL(BaseModel):
     is_favorite: bool
 
 
+class URLAdminResponse(BaseModel):
+
+    id: int
+    domain_id: int
+    user_id: Optional[UUID] = None
+    original_url: str
+    p_hash: Optional[bytes] = None
+    short_url: str
+    short_code: str
+    clicks: int
+    title: Optional[str] = None
+    has_password: bool
+    is_favorite: bool
+    created_at: datetime
+    expires_at: Optional[datetime] = None
+
+
 class URLResponse(BaseModel):
     
     id: int
+    domain_id: int
     user_id: Optional[str] = None
     original_url: str
     short_url: str
     short_code: str
-    clicks: int
+    clicks: int = 0
     has_password: bool
-    qrcode_url: str
     title: Optional[str] = None
-    is_favorite: bool = False
-    created_at: Optional[str] = None
-    expires_at: Optional[str] = None
+    is_favorite: Optional[bool] = False
+    created_at: datetime
+    expires_at: Optional[datetime] = None
 
 
 class UrlPagination(BaseModel):
@@ -103,3 +121,23 @@ class UrlAnalyticPagination(BaseModel):
     pages: int
     results: List[UrlAnalytic]
 
+
+class UrlRedirect(BaseModel):
+
+    id: int
+    p_hash: Optional[bytes]
+    original_url: str
+    expires_at: Optional[datetime] = None
+
+
+class UrlStats(BaseModel):
+    url_id: int
+    total_clicks: int
+    unique_visitors: int
+    first_click: Optional[datetime]
+    last_click: Optional[datetime]
+    clicks_today: int
+    browsers: Optional[List[str]]
+    operating_systems: Optional[List[str]]
+    device_types: Optional[List[str]]
+    countries: Optional[List[str]]

@@ -1,25 +1,27 @@
-from fastapi import FastAPI, Request, status, Query
-from fastapi.responses import Response, FileResponse, HTMLResponse
+from fastapi import FastAPI, Request, status
+from fastapi.responses import Response, FileResponse
 from fastapi.exceptions import RequestValidationError, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.gzip import GZipMiddleware
 from src.constants import Constants
-from src.schemas.urls import ExpiredUrl
 from src.cache.config import CacheSettings
 from src.services import logs as log_service
-from src import util
 from src.db import db_init, db_close
 from src.perf.system_monitor import get_monitor
 from src.globals import Globals
 from src import middleware
 from src.routes import shortener
 from src.routes import admin
+from src.routes import users_admin
 from src.routes import auth
+from src.routes import logs_admin
+from src.routes import urls_admin
+from src.routes import time_perf_admin
+from src.routes import domains_admin
 from src.routes import user
-from src.routes import dashboard
+from src import util
 import redis.asyncio as redis
 import time
 import contextlib
@@ -48,7 +50,7 @@ async def init_redis_cache():
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 Starting ZAR API...")
+    print(f"[Starting {Constants.API_NAME}]")
     # System Monitor
     task = asyncio.create_task(util.periodic_update())
 
@@ -75,16 +77,20 @@ async def lifespan(app: FastAPI):
     # Redis
     await Globals.redis_client.aclose()
 
-    print("👋 Shutting down ZAR API...")
+    print(f"[Shutting down {Constants.API_NAME}]")
 
 
 
 app = FastAPI(    
-    title=os.getenv("API_NAME"), 
-    description=os.getenv("API_DESCR"),
-    version=os.getenv("API_VERSION"),
-    lifespan=lifespan
+    title=Constants.API_NAME, 
+    description=Constants.API_DESCR,
+    version=Constants.API_VERSION,
+    lifespan=lifespan    
 )
+
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/")
 def read_root():
@@ -97,15 +103,15 @@ async def favicon():
     return FileResponse(favicon_path)
 
 
-app.include_router(shortener.router, tags=["shorten"])
-app.include_router(admin.router, prefix="/admin", tags=["admin"])
-app.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
-app.include_router(user.router, prefix="/user", tags=["user"])
-app.include_router(auth.router, prefix="/auth", tags=["auth"])
-
-
-templates = Jinja2Templates(directory="templates")
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.include_router(shortener.router, prefix='/api/v1', tags=["shorten"])
+app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
+app.include_router(users_admin.router, prefix="/api/v1/admin", tags=["admin_users"])
+app.include_router(urls_admin.router, prefix="/api/v1/admin", tags=["admin_urls"])
+app.include_router(logs_admin.router, prefix="/api/v1/admin", tags=["admin_logs"])
+app.include_router(time_perf_admin.router, prefix="/api/v1/admin", tags=["admin_time_perf"])
+app.include_router(domains_admin.router, prefix="/api/v1/admin", tags=["admin_domains"])
+app.include_router(user.router, prefix="/api/v1/user", tags=["user"])
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 
 
 origins = [
@@ -124,19 +130,6 @@ app.add_middleware(
 )
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
-
-
-
-@app.get("/url/expired", response_class=HTMLResponse, summary="Página para URL Expirada")
-async def show_expired_page(request: Request, original_url: str = Query(), expired_at: str = Query()):
-
-    context = {
-        "request": request,
-        "expired_at": expired_at
-    }    
-    
-    return templates.TemplateResponse("expired.html", context)
-
 
 
 ########################## MIDDLEWARES ##########################

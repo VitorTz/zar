@@ -1,5 +1,41 @@
-from pydantic import BaseModel
-from typing import Optional, List
+from pydantic import BaseModel, IPvAnyAddress, field_validator
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+from uuid import UUID
+import json
+
+
+class LogLevelStat(BaseModel):
+    level: str
+    count: int
+
+class LogStatusStat(BaseModel):
+    status_group: str
+    count: int
+
+class LogMethodStat(BaseModel):
+    method: str
+    count: int
+
+class LogDailyStat(BaseModel):
+    date: datetime
+    count: int
+
+class LogHourlyStat(BaseModel):
+    hour: datetime
+    count: int
+
+class LogErrorEndpoint(BaseModel):
+    path: str
+    count: int
+
+class LogStats(BaseModel):
+    by_level: List[LogLevelStat]
+    by_status: List[LogStatusStat]
+    by_method: List[LogMethodStat]
+    by_day: List[LogDailyStat]
+    by_hour: List[LogHourlyStat]
+    error_endpoints: List[LogErrorEndpoint]
 
 
 class Log(BaseModel):
@@ -10,38 +46,31 @@ class Log(BaseModel):
     path: str
     method: str
     status_code: int
-    user_id: Optional[str] = None
+    user_id: Optional[UUID] = None
     stacktrace: str
-    metadata: dict
-    created_at: str
+    metadata: Dict[str, Any]
+    created_at: datetime
 
+    @field_validator("metadata", mode="before")
+    def parse_metadata(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return {}
+        return v
 
-class LogPagination(BaseModel):
-
-    total: int
-    limit: int
-    offset: int
-    page: int
-    pages: int
-    results: List[Log]
-
-
-class RateLimitLog(BaseModel):
-
-    ip_address: str
+class RateLimitViolation(BaseModel):
+    
+    ip_address: IPvAnyAddress
     path: str
     method: str
     total_attempts: int
     violation_count: int
-    first_violation: str
-    last_violation: str
-    
+    first_violation: datetime
+    last_violation: datetime
 
-class RateLimitLogPagination(BaseModel):
+
+class DeletedLogs(BaseModel):
 
     total: int
-    limit: int
-    offset: int
-    page: int
-    pages: int
-    results: List[RateLimitLog]

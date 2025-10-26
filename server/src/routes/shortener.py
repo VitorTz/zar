@@ -1,23 +1,25 @@
-from fastapi import APIRouter, Request, Depends, Query, status, Form, Cookie
+from fastapi import APIRouter, Request, Depends, Form, Cookie, Query
 from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from src.security import get_user_from_token_if_exists
-from src.schemas.urls import URLResponse, URLCreate, UrlPagination
-from src.schemas.url_stats import URLStatsResponse, URLStatsNotFound
+from src.schemas.urls import URLResponse, URLCreate
 from src.schemas.user import User
-from src.db import get_db
 from src.services import urls as url_service
 from asyncpg import Connection
+from src.db import get_db
+from typing import Optional
 
 
 router = APIRouter()
+templates = Jinja2Templates(directory="templates")
 
 
-@router.post("/url", response_model=URLResponse)
+@router.post("/", response_model=URLResponse)
 async def shorten_url(
     url: URLCreate, 
     request: Request,
-    refresh_token: str | None = Cookie(default=None),
-    user: User | None = Depends(get_user_from_token_if_exists),
+    refresh_token: Optional[str] = Cookie(default=None),
+    user: Optional[User] = Depends(get_user_from_token_if_exists),
     conn: Connection = Depends(get_db)
 ):      
     return await url_service.shorten(url, refresh_token, request, conn, user)
@@ -42,28 +44,15 @@ async def verify_password(
     return await url_service.verify_password_and_redirect(short_code, password, request, conn)
 
 
-@router.get(
-    "/url/{short_code}/stats",
-    response_model=URLStatsResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Obter estatísticas detalhadas da URL",
-    description="Retorna analytics completos dos últimos 30 dias para uma URL específica",
-    responses={
-        404: {
-            "model": URLStatsNotFound,
-            "description": "URL não encontrada"
-        }
+@router.get("/{short_code}/stats")
+async def get_url_stats(short_code: str, conn: Connection = Depends(get_db)):
+    await url_service.get_url_stats(short_code, conn)
+
+
+@router.get("/expired", response_class=HTMLResponse, summary="Página para URL Expirada")
+async def show_expired_page(request: Request, expired_at: str = Query()):
+    context = {
+        "request": request,
+        "expired_at": expired_at
     }
-)
-async def get_url_stats_endpoint(short_code: str, conn: Connection = Depends(get_db)): 
-    return await url_service.get_url_stats(short_code, conn)
-
-
-@router.get("/url/urls", response_model=UrlPagination)
-async def get_urls(
-    request: Request,
-    limit: int = Query(default=64, ge=0, le=64), 
-    offset: int = Query(default=0, ge=0),
-    conn: Connection = Depends(get_db)
-):
-    return await url_service.get_urls(request, limit, offset, conn)
+    return templates.TemplateResponse("expired.html", context)

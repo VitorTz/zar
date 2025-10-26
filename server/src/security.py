@@ -6,23 +6,23 @@ from passlib.context import CryptContext
 from src.constants import Constants
 from src.db import get_db
 from src.schemas.user import User, UserLoginAttempt
+from src.schemas.token import SessionToken, Token
 from src.tables import users as users_table
 from src.globals import Globals
 from fastapi import status
 from jose import jwt, JWTError
 from asyncpg import Connection
 from src.constants import Constants
-from urllib.parse import urlparse, urljoin
+from typing import Optional, Union
 from dataclasses import dataclass
-import aiohttp
-import ipaddress
-import socket
-import hashlib
+from src import util
 import uuid
+import hashlib
 
 
 @dataclass
 class UrlMetadata:
+
     final_url: str
     status: int
     content_type: str
@@ -32,7 +32,8 @@ class UrlMetadata:
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-def check_admin_token(token: str):
+def check_admin_token(token: Optional[str]):
+    if not token: return False
     try:
         payload = jwt.decode(token, Constants.SECRET_KEY, algorithms=[Constants.ALGORITHM])
         admin_password: str = payload.get("sub")
@@ -47,19 +48,9 @@ def require_admin(token: str = Depends(Globals.oauth2_admin_scheme)):
     if not check_admin_token(token):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
+            detail="Admin access is required"
         )
     return True
-
-
-def create_new_refresh_token_expires_time() -> datetime:
-    return datetime.now(timezone.utc) + timedelta(days=Constants.REFRESH_TOKEN_EXPIRE_DAYS)
-
-
-def create_refresh_token() -> tuple[str, datetime]:
-    token = str(uuid.uuid4())
-    expires = create_new_refresh_token_expires_time()
-    return token, expires
 
 
 def hash_password(password: str) -> bytes | None:
@@ -67,29 +58,41 @@ def hash_password(password: str) -> bytes | None:
     return pwd_context.hash(password.strip()).encode()
 
 
-def verify_password(plain_password: str, hashed_password: bytes) -> bool:
-    return pwd_context.verify(plain_password.strip(), hashed_password.decode())
+def verify_password(password: str, password_hash: Union[bytes, memoryview]) -> bool:
+    if not password: return False
+    return bytes(password_hash) == hashlib.md5(password.strip().encode()).digest()
 
 
-def create_access_token(manager_id: str | uuid.UUID) -> str:
-    expire = datetime.now(timezone.utc) + (timedelta(minutes=Constants.ACCESS_TOKEN_EXPIRE_MINUTES))
-    return jwt.encode(
-        {"sub": str(manager_id), "exp": expire}, 
-        Constants.SECRET_KEY,
-        algorithm=Constants.ALGORITHM
+def create_new_refresh_token_expires_time() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(days=Constants.REFRESH_TOKEN_EXPIRE_DAYS)
+
+
+def create_new_access_token_expires_time() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(hours=Constants.ACCESS_TOKEN_EXPIRE_HOURS)
+
+
+def create_refresh_token() -> Token:
+    return Token(
+        token=str(uuid.uuid4()), 
+        expires_at=create_new_refresh_token_expires_time()
     )
 
 
-def create_session_token(manager_id: str | uuid.UUID) -> tuple[str, str, datetime]:
-    access_token = create_access_token(manager_id)
-    refresh_token, expires_at = create_refresh_token()
-    return access_token, refresh_token, expires_at
+def create_access_token(manager_id: uuid.UUID) -> Token:
+    expires_at: str = datetime.now(timezone.utc) + (timedelta(hours=Constants.ACCESS_TOKEN_EXPIRE_HOURS))
+    token: str = jwt.encode(
+        {"sub": str(manager_id), "exp": expires_at}, 
+        Constants.SECRET_KEY,
+        algorithm=Constants.ALGORITHM
+    )
+    return Token(token, expires_at)
 
 
-def create_admin_token() -> str:
-    data = {"sub": Constants.ADMIN_PASSWORD}
-    to_encode = data.copy()
-    return jwt.encode(to_encode, Constants.SECRET_KEY, algorithm=Constants.ALGORITHM)
+def create_session_token(manager_id: uuid.UUID) -> SessionToken:
+    return SessionToken(
+        create_access_token(manager_id), 
+        create_refresh_token()
+    )
 
 
 def check_user_login_attempts(lock: UserLoginAttempt):
@@ -99,7 +102,7 @@ def check_user_login_attempts(lock: UserLoginAttempt):
     
 
 async def get_user_from_token(
-    access_token: str | None = Cookie(default=None),
+    access_token: Optional[str] = Cookie(default=None),
     conn: Connection = Depends(get_db)
 ) -> User:
     credentials_exception = HTTPException(
@@ -132,7 +135,7 @@ async def get_user_from_token(
 
 
 async def get_user_from_token_if_exists(
-    access_token: str | None = Cookie(default=None),
+    access_token: Optional[str] = Cookie(default=None),
     conn: Connection = Depends(get_db)
 ) -> User | None:
     if access_token is None: 
@@ -150,7 +153,7 @@ async def get_user_from_token_if_exists(
         return None
 
 
-def set_access_cookie(response: Response, access_token: str, refresh_token: str):
+def set_session_token_cookie(response: Response, session_token: SessionToken):
     if Constants.IS_PRODUCTION:
         samesite_policy = "none"
         secure_policy = True 
@@ -160,69 +163,20 @@ def set_access_cookie(response: Response, access_token: str, refresh_token: str)
     
     response.set_cookie(
         key="refresh_token",
-        value=refresh_token,
+        value=session_token.refresh_token.token,
         httponly=True,
         secure=secure_policy,
         samesite=samesite_policy,
         path="/",
-        max_age=Constants.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+        max_age=util.seconds_until(session_token.refresh_token.expires_at)
     )
 
     response.set_cookie(
         key="access_token",
-        value=access_token,
+        value=session_token.access_token.token,
         httponly=True,
         secure=secure_policy,
         samesite=samesite_policy,
         path="/",
-        max_age=Constants.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+        max_age=util.seconds_until(session_token.access_token.expires_at)
     )
-
-
-def sha256_bytes(url: str) -> bytes:
-    return hashlib.sha256(url.encode("utf-8")).digest()
-
-
-async def fetch_secure_url_metadata(url: str) -> dict:
-    current_url = url
-    for _ in range(5):
-        parsed = urlparse(current_url)
-        if not parsed.scheme or not parsed.netloc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"URL inválida: {current_url}")
-        
-        try:
-            ip = socket.gethostbyname(parsed.hostname)
-            ip_obj = ipaddress.ip_address(ip)
-            for net in Constants.PRIVATE_NETWORKS:
-                if ip_obj in net:
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL apontando para rede privada não permitida")
-        except socket.gaierror:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Hostname não resolvível: {parsed.hostname}")
-        
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.head(current_url, allow_redirects=False, timeout=5) as resp:
-                    if resp.status in (301, 302, 303, 307, 308):
-                        location = resp.headers.get("Location")
-                        if not location:
-                            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Redirecionamento inválido")
-                        current_url = urljoin(current_url, location)
-                        continue
-                    elif resp.status != 200:
-                        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"URL inacessível, status {resp.status}")
-                    else:
-                        return UrlMetadata(
-                            final_url=current_url,
-                            status=resp.status,
-                            content_type=resp.headers.get("Content-Type", ""),
-                            content_length=resp.headers.get("Content-Length", "")
-                        )
-            except Exception:
-                return UrlMetadata(
-                    final_url=current_url,
-                    status=resp.status,
-                    content_type="",
-                    content_length=None
-                )
-
-    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Redirecionamentos excederam {5}")
