@@ -1,5 +1,15 @@
-from src.schemas.domain import DomainCreate, DomainDelete, Domain, DomainUpdate
-from src.schemas.admin import HealthReport, MemoryInfo, CpuInfo, DiskInfo
+from src.schemas.domain import (
+    DomainCreate, 
+    DomainDelete, 
+    Domain, 
+    DomainUpdate
+)
+from src.schemas.admin import (
+    HealthReport, 
+    MemoryInfo, 
+    CpuInfo, 
+    DiskInfo
+)
 from src.tables import users as users_table
 from src.tables import domains as domains_table
 from src.tables import urls as urls_table
@@ -9,6 +19,7 @@ from fastapi import status
 from asyncpg import Connection
 from typing import Optional
 from src.db import db_count, db_version
+from src.migrate import db_migrate
 from src.perf.system_monitor import get_monitor
 from datetime import datetime
 
@@ -74,3 +85,27 @@ async def update_domain(domain: DomainUpdate, conn: Connection) -> Domain:
 
 async def delete_all_user_sessions(conn: Connection) -> None:
     await users_table.delete_sessions(conn)
+
+
+async def reset_database(conn: Connection) -> None:
+    statements = [
+        "DROP TABLE IF EXISTS users CASCADE;",
+        "DROP TABLE IF EXISTS user_session_tokens CASCADE;",
+        "DROP TABLE IF EXISTS user_login_attempts CASCADE;",
+        "DROP TABLE IF EXISTS domains CASCADE;",
+        "DROP TABLE IF EXISTS urls CASCADE;",
+        "DROP TABLE IF EXISTS user_urls CASCADE;",
+        "DROP TABLE IF EXISTS url_tags CASCADE;",
+        "DROP TABLE IF EXISTS url_tag_relations CASCADE;",
+        "DROP TABLE IF EXISTS url_analytics CASCADE;",
+        "DROP TABLE IF EXISTS logs CASCADE;",
+        "DROP TABLE IF EXISTS time_perf CASCADE;",
+        "DROP TABLE IF EXISTS rate_limit_logs CASCADE;",
+        "DROP MATERIALIZED VIEW IF EXISTS mv_dashboard CASCADE;",
+        "DROP FUNCTION IF EXISTS increment_url_clicks CASCADE;"
+    ]
+
+    for stmt in statements:
+        await conn.execute(stmt)
+
+    await db_migrate(conn)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from src.security import require_admin
 from src.db import get_db
 from src.schemas.reports import SystemReport
@@ -36,3 +36,7 @@ async def crash(
         return {"status": "ok", "detail": "Crash evitado por probabilidade"}
     raise HTTPException(status_code=code, detail=message)
 
+
+@router.post("/reset", status_code=status.HTTP_200_OK)
+async def reset_database(conn: Connection = Depends(get_db)):
+    await admin_service.reset_database(conn)

@@ -1,20 +1,7 @@
 ------------------------------------------------
-----          [Zar - Url Shortener]         ----
-----              SCHEMA V2.0               ----
+----         [TzHar - Url Shortener]        ----
+----              SCHEMA V1.0               ----
 ------------------------------------------------
-
-------------------------------------------------
-----                [DROPS]                 ----
-------------------------------------------------
--- DROP TABLE IF EXISTS users CASCADE;
--- DROP TABLE IF EXISTS domains CASCADE;
--- DROP TABLE IF EXISTS urls CASCADE;
--- DROP TABLE IF EXISTS url_tags CASCADE;
--- DROP TABLE IF EXISTS url_tag_relations CASCADE;
--- DROP TABLE IF EXISTS url_analytics CASCADE;
--- DROP TABLE IF EXISTS logs CASCADE;
--- DROP TABLE IF EXISTS rate_limit_logs CASCADE;
--- DROP FUNCTION increment_url_clicks CASCADE;
 
 ------------------------------------------------
 ----             [EXTENSIONS]               ----
@@ -99,8 +86,10 @@ $$ LANGUAGE plpgsql;
 ------------------------------------------------
 
 ------------------------------------------------
-----                 [USERS]                ----
+----               [TABLES]                 ----
 ------------------------------------------------
+
+--------------------[USERS]---------------------
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email CITEXT NOT NULL,
@@ -112,9 +101,8 @@ CREATE TABLE IF NOT EXISTS users (
 );
 CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
 
-------------------------------------------------
-----         [USER SESSIONS TOKENS]         ----
-------------------------------------------------
+
+-------------[USER SESSIONS TOKENS]--------------
 CREATE TABLE IF NOT EXISTS user_session_tokens (
     refresh_token TEXT PRIMARY KEY,
     user_id UUID NOT NULL,
@@ -135,9 +123,8 @@ CREATE TABLE IF NOT EXISTS user_session_tokens (
 CREATE INDEX IF NOT EXISTS idx_user_session_tokens_user ON user_session_tokens(user_id) WHERE revoked = FALSE;
 CREATE INDEX IF NOT EXISTS idx_user_session_tokens_expires ON user_session_tokens(expires_at) WHERE revoked = FALSE;
 
-------------------------------------------------
-----         [USER LOGIN ATTEMPTS]          ----
-------------------------------------------------
+
+-------------[USER LOGIN ATTEMPTS]--------------
 CREATE TABLE IF NOT EXISTS user_login_attempts (
     user_id UUID PRIMARY KEY,
     attempts INT NOT NULL DEFAULT 0,
@@ -151,9 +138,8 @@ CREATE TABLE IF NOT EXISTS user_login_attempts (
 
 CREATE INDEX IF NOT EXISTS idx_login_attempts_locked ON user_login_attempts(locked_until) WHERE locked_until IS NOT NULL;
 
-------------------------------------------------
-----              [DOMAINS URL]             ----
-------------------------------------------------
+
+-----------------[DOMAINS URL]------------------
 CREATE TABLE IF NOT EXISTS domains (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     url TEXT NOT NULL,
@@ -163,9 +149,9 @@ CREATE TABLE IF NOT EXISTS domains (
     CONSTRAINT domains_unique_url_hash UNIQUE (url_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_domains_url_hash ON domains USING hash(url_hash);
-------------------------------------------------
-----                 [URLS]                 ----
-------------------------------------------------
+
+
+---------------------[URLS]----------------------
 CREATE TABLE IF NOT EXISTS urls (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     short_code TEXT NOT NULL,
@@ -192,9 +178,7 @@ CREATE INDEX IF NOT EXISTS idx_urls_active_clicks ON urls(id, clicks) WHERE is_a
 CREATE INDEX IF NOT EXISTS idx_urls_domain_id ON urls(domain_id);
 
 
-------------------------------------------------
-----               [USER URLS]              ----
-------------------------------------------------
+------------------[USER URLS]-------------------
 CREATE TABLE IF NOT EXISTS user_urls (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     url_id BIGINT NOT NULL,
@@ -207,9 +191,8 @@ CREATE TABLE IF NOT EXISTS user_urls (
 CREATE INDEX IF NOT EXISTS idx_user_urls_user_favorite ON user_urls(user_id, is_favorite);
 CREATE INDEX IF NOT EXISTS idx_user_urls_url_id ON user_urls(url_id);
 
-------------------------------------------------
-----               [URL TAGS]               ----
-------------------------------------------------
+
+-------------------[URL TAGS]-------------------
 CREATE TABLE IF NOT EXISTS url_tags (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id UUID NOT NULL,
