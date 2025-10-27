@@ -4,6 +4,22 @@ from asyncpg import Connection
 from typing import Optional
 from src import util
 
+async def get_domain_by_id(id: int, conn: Connection) -> Optional[Domain]:
+    row = await conn.fetchrow(
+        """
+            SELECT
+                id,
+                url,
+                url_hash,
+                is_secure
+            FROM
+                domains
+            WHERE
+                id = $1
+        """,
+        id
+    )
+    return Domain(**dict(row)) if row else None
 
 async def get_domain(url: str, conn: Connection) -> Domain:
     r = await conn.fetchrow(

@@ -88,7 +88,7 @@ async def refresh_access_token(refresh_token: Optional[str], conn: Connection) -
     )
 
     user: User = await users_table.get_user(user.id, conn)
-    response = JSONResponse(user.model_dump_json())
+    response = JSONResponse(user.model_dump(mode='json'))
     security.set_session_token_cookie(response, session_token)
 
     return response

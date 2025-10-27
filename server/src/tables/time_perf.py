@@ -1,6 +1,6 @@
 from src.schemas.time_perf import TimePerfCreate, TimePerfResponse, TimePerfStats, TimePerfGroupedStats
 from src.schemas.pagination import Pagination
-from typing import List
+from typing import List, Optional
 from asyncpg import Connection
 
 
@@ -39,9 +39,9 @@ async def get_time_perf_globals_stats(conn: Connection) -> TimePerfStats:
         """
             SELECT 
                 COUNT(*) AS total_records,
-                AVG(execution_time) AS avg_exec_time,
-                MIN(execution_time) AS min_exec_time,
-                MAX(execution_time) AS max_exec_time
+                COALESCE(AVG(execution_time), 0::FLOAT) AS avg_exec_time,
+                COALESCE(MIN(execution_time), 0::FLOAT) AS min_exec_time,
+                COALESCE(MAX(execution_time), 0::FLOAT) AS max_exec_time
             FROM 
                 time_perf
         """
@@ -69,3 +69,7 @@ async def get_time_perf_grouped_stats(conn: Connection) -> List[TimePerfGroupedS
         """
     )
     return [TimePerfGroupedStats(**dict(row)) for row in rows]
+
+
+async def delete_time_perf(conn: Connection):
+    await conn.execute("DELETE FROM time_perf")

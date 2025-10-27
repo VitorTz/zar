@@ -391,3 +391,7 @@ async def get_sessions(limit: int, offset: int, conn: Connection) -> Pagination[
         offset=offset,
         results=[UserSession(**dict(row)) for row in rows]
     )
+
+
+async def delete_sessions(conn: Connection):
+    await conn.execute("DELETE FROM user_session_tokens")

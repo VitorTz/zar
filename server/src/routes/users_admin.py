@@ -31,6 +31,11 @@ async def delete_all_users(conn: Connection = Depends(get_db)):
     return await admin_service.delete_all_users(conn)
 
 
+@router.delete("/sessions", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user_sessions(conn: Connection = Depends(get_db)):
+    return await admin_service.delete_all_user_sessions(conn)
+
+
 @router.get("/sessions", status_code=status.HTTP_200_OK, response_model=Pagination[UserSession])
 async def get_sessions(
     limit: int = Query(default=64, ge=0, le=64),
@@ -38,3 +43,5 @@ async def get_sessions(
     conn: Connection = Depends(get_db)
 ):
     return await users_table.get_sessions(limit, offset, conn)
+
+

@@ -19,7 +19,9 @@ from src.routes import logs_admin
 from src.routes import urls_admin
 from src.routes import time_perf_admin
 from src.routes import domains_admin
+from src.routes import tags
 from src.routes import user
+from src.routes import dashboard
 from src import util
 import time
 import contextlib
@@ -33,10 +35,6 @@ async def lifespan(app: FastAPI):
     print(f"[Starting {Constants.API_NAME}]")
     # System Monitor
     task = asyncio.create_task(util.periodic_update())
-
-    # Dir
-    Constants.TMP_DIR.mkdir(exist_ok=True)
-    Constants.LOG_DIR.mkdir(exist_ok=True)
 
     # Database
     await db_init()
@@ -90,6 +88,8 @@ app.include_router(urls_admin.router, prefix="/api/v1/admin", tags=["admin_urls"
 app.include_router(logs_admin.router, prefix="/api/v1/admin", tags=["admin_logs"])
 app.include_router(time_perf_admin.router, prefix="/api/v1/admin", tags=["admin_time_perf"])
 app.include_router(domains_admin.router, prefix="/api/v1/admin", tags=["admin_domains"])
+app.include_router(tags.router, prefix="/api/v1/user/tags", tags=["tags"])
+app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(user.router, prefix="/api/v1/user", tags=["user"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 
@@ -113,7 +113,6 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
 ########################## MIDDLEWARES ##########################
-#################################################################
 
 @app.middleware("http")
 async def http_middleware(request: Request, call_next):

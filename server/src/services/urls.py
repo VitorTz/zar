@@ -1,8 +1,10 @@
-from fastapi.exceptions import HTTPException
-from fastapi.responses import RedirectResponse, JSONResponse
-from fastapi import Request, status
-from asyncpg import Connection
-from src.schemas.urls import URLCreate, UrlRedirect, UrlStats, URLResponse
+from src.schemas.urls import (
+    URLCreate, 
+    UrlRedirect, 
+    UrlStats, 
+    URLResponse, 
+    URLDelete
+)
 from src.schemas.pagination import Pagination
 from src.schemas.user import User
 from src.schemas.token import SessionToken
@@ -11,6 +13,10 @@ from src.services import domain as domain_service
 from src.tables import urls as urls_table
 from src.tables import users as users_table
 from src.tables import domains as domains_table
+from fastapi.exceptions import HTTPException
+from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi import Request, status
+from asyncpg import Connection
 from src import security
 from typing import Optional
 from src import util
@@ -98,3 +104,6 @@ async def get_url_stats(short_code: str, conn: Connection) -> UrlStats:
         )
     return url_stats
 
+
+async def delete_url(url: URLDelete, conn: Connection):
+    await urls_table.delete_url(url.id, conn)

@@ -24,7 +24,7 @@ class UrlShortCode(BaseModel):
 
 class URLDelete(BaseModel):
 
-    short_code: str
+    id: int
 
 
 class CreateFavoriteURL(BaseModel):
@@ -119,3 +119,55 @@ class UrlStats(BaseModel):
     operating_systems: Optional[List[str]] = []
     device_types: Optional[List[str]] = []
     countries: Optional[List[str]] = []
+
+
+class UrlTag(BaseModel):
+
+    id: int
+    user_id: UUID
+    name: str
+    color: str
+    descr: Optional[str] = None
+    created_at: datetime
+
+
+class UrlTagCreate(BaseModel):
+
+    name: str
+    color: Optional[str] = "#d8775a"
+    descr: Optional[str] = None
+
+
+class UrlTagUpdate(BaseModel):
+    
+    id: int
+    name: Optional[str] = None
+    color: Optional[str] = None
+    descr: Optional[str] = None
+
+
+class UrlTagId(BaseModel):
+
+    id: int
+
+class UrlTagDelete(BaseModel):
+    
+    id: int    
+
+
+class UrlTagRelation(BaseModel):
+
+    url_id: int
+    tag_id: int
+    created_at: datetime
+
+
+class UrlTagRelationCreate(BaseModel):
+
+    url_id: int
+    tag_id: int
+
+class UrlTagRelationDelete(BaseModel):
+
+    url_id: int
+    tag_id: int

@@ -4,6 +4,8 @@ from src.tables import users as users_table
 from src.tables import domains as domains_table
 from src.tables import urls as urls_table
 from src.services import domain as domain_service
+from fastapi.exceptions import HTTPException
+from fastapi import status
 from asyncpg import Connection
 from typing import Optional
 from src.db import db_count, db_version
@@ -63,5 +65,12 @@ async def delete_domain(domain: DomainDelete, conn: Connection):
     await domain_service.delete_domain(domain, conn)
 
 
-async def update_domain(domain: DomainUpdate, conn: Connection) -> None:
-    await domain_service.update_domain(domain, conn)
+async def update_domain(domain: DomainUpdate, conn: Connection) -> Domain:
+    domain: Optional[Domain] = await domain_service.update_domain(domain, conn)
+    if not domain:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return domain
+
+
+async def delete_all_user_sessions(conn: Connection) -> None:
+    await users_table.delete_sessions(conn)

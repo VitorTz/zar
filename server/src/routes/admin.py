@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
-from typing import Optional
 from src.security import require_admin
 from src.db import get_db
 from src.schemas.reports import SystemReport
@@ -7,6 +6,7 @@ from src.schemas.admin import HealthReport
 from src.services import admin as admin_service
 from src.services import report as report_service
 from asyncpg import Connection
+from typing import Optional
 import random
 
 

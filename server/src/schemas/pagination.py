@@ -1,7 +1,7 @@
 from pydantic import BaseModel, model_validator
 from typing import Generic, TypeVar, List, Optional
-T = TypeVar("T", bound=BaseModel)
 
+T = TypeVar("T", bound=BaseModel)
 
 class Pagination(BaseModel, Generic[T]):
 

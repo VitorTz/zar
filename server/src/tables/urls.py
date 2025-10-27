@@ -17,6 +17,34 @@ async def url_exists(url_id: int, conn: Connection) -> bool:
     return r is not None
 
 
+async def user_has_access_to_url(user_id: str, url_id: int, conn: Connection) -> bool:
+    result = await conn.fetchval(
+        """
+        SELECT 
+            CASE 
+                WHEN COUNT(*) = 0 THEN TRUE
+                WHEN COUNT(*) FILTER (WHERE user_id = $2) > 0 THEN TRUE  -- specific user has access
+                ELSE FALSE
+            END AS has_access
+        FROM user_urls
+        WHERE url_id = $1;
+        """,
+        url_id,
+        user_id,
+    )
+
+    return bool(result)
+
+
+async def user_url_exists(user_id: str, url_id: int, conn: Connection) -> bool:
+    r = await conn.fetchval(
+        "SELECT id FROM user_urls WHERE user_id = $1 AND url_id = $2", 
+        user_id,
+        url_id
+    )
+    return r is not None
+
+
 async def get_redirect_url(short_code: str, conn: Connection) -> Optional[UrlRedirect]:
     r = await conn.fetchrow(
         """
@@ -65,37 +93,53 @@ async def get_url_id(short_code: str, conn: Connection) -> Optional[int]:
     
 
 
+
 async def get_urls(base_url: str, limit: int, offset: int, conn: Connection) -> Pagination[URLResponse]:
-    total: int = await conn.fetchval("SELECT COUNT(*) AS total FROM urls")
+    total: int = await conn.fetchval("SELECT COUNT(*) FROM urls")    
     rows = await conn.fetch(
         """
-            SELECT
-                urls.id,
-                urls.domain_id,
-                urls.original_url,
-                urls.original_url_hash,
-                user_urls.user_id,
-                urls.short_code,
-                urls.clicks,
-                COALESCE(user_urls.is_favorite, FALSE) AS is_favorite,
-                urls.created_at,
-                urls.expires_at
+        SELECT
+            u.id,
+            u.domain_id,
+            uu.user_id,
+            u.original_url,
+            u.short_code,
+            u.clicks,
+            COALESCE(uu.is_favorite, FALSE) AS is_favorite,
+            u.created_at,
+            u.expires_at
+        FROM 
+            urls u
+        LEFT JOIN (
+            SELECT DISTINCT ON (url_id) *
             FROM 
-                urls
-            JOIN
-                domains ON domains.id = urls.domain_id
-            LEFT JOIN
-                user_urls ON user_urls.url_id = urls.id                            
+                user_urls
             ORDER BY 
-                urls.created_at DESC
-        """
+                url_id, 
+                id DESC
+        ) uu ON uu.url_id = u.id
+        ORDER BY 
+            u.id
+        LIMIT
+            $1
+        OFFSET
+            $2
+        """,
+        limit,
+        offset
     )
-    
+
     return Pagination(
         total=total,
         limit=limit,
         offset=offset,
-        results=[URLResponse(**dict(row), short_url=f"{base_url}/api/v1/{row['short_code']}") for row in rows]
+        results=[
+            URLResponse(
+                **dict(row),
+                short_url=f"{base_url}/api/v1/{row['short_code']}"
+            )
+            for row in rows
+        ]
     )
 
 
@@ -308,7 +352,19 @@ async def get_user_urls(
     base_url: str, 
     conn: Connection
 ) -> Pagination[URLResponse]:
-    total: int = await conn.fetchval("SELECT COUNT(*) AS total FROM user_urls WHERE user_id = $1", user_id)
+    total: int = await conn.fetchval(
+        """
+            SELECT 
+                COUNT(*) AS total 
+            FROM 
+                user_urls
+            JOIN
+                urls ON urls.id = user_urls.url_id
+            WHERE 
+                user_id = $1
+        """, 
+        user_id
+    )
 
     rows = await conn.fetch(
         """
@@ -322,11 +378,11 @@ async def get_user_urls(
                 urls.created_at,
                 urls.expires_at
             FROM
-                urls
+                user_urls
+            JOIN
+                urls ON urls.id = user_urls.url_id
             JOIN
                 domains ON domains.id = urls.domain_id
-            JOIN
-                user_urls ON user_urls.url_id = urls.id
             WHERE
                 user_urls.user_id = $1
             ORDER BY
@@ -514,8 +570,7 @@ async def get_url_stats(url_id: int, conn: Connection) -> Optional[UrlStats]:
         url_id
     )
 
-    if not r:
-        return None
+    if not r: return None
 
     data = dict(r)
     for key in ("browsers", "operating_systems", "device_types", "countries"):
@@ -526,3 +581,7 @@ async def get_url_stats(url_id: int, conn: Connection) -> Optional[UrlStats]:
             except json.JSONDecodeError:
                 data[key] = []
     return UrlStats(**data)
+
+
+async def delete_url(url_id: int, conn: Connection):
+    await conn.execute("DELETE FROM urls WHERE id = $1", url_id)

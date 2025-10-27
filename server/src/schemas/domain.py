@@ -1,4 +1,5 @@
 from pydantic import BaseModel, HttpUrl, field_validator
+from typing import Optional
 
 
 class Domain(BaseModel):
@@ -18,7 +19,7 @@ class Domain(BaseModel):
 class DomainCreate(BaseModel):
 
     url: HttpUrl
-    is_secure: bool
+    is_secure: Optional[bool] = True
 
 
 class DomainDelete(BaseModel):

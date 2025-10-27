@@ -23,10 +23,11 @@ class TimePerfResponse(BaseModel):
 
 
 class TimePerfStats(BaseModel):
+    
     total_records: int
-    avg_exec_time: float
-    min_exec_time: float
-    max_exec_time: float
+    avg_exec_time: Optional[float] = 0
+    min_exec_time: Optional[float] = 0
+    max_exec_time: Optional[float] = 0
 
 
 class TimePerfGroupedStats(BaseModel):

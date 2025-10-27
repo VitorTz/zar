@@ -7,7 +7,7 @@ from pathlib import Path
 from asyncpg import Connection
 from src.s3 import S3
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Any
 from urllib.parse import urlparse
 import redis.asyncio as redis
 import uuid
@@ -75,16 +75,6 @@ def extract_base_url(request: Request) -> str:
     return str(request.base_url).rstrip('/')
 
 
-async def create_qrcode(data: str):
-    qrcode = segno.make(data)
-    random_id = str(uuid.uuid4())
-    path = Path(f'tmp/{random_id}.png')
-    qrcode.save(path, scale=10)
-    url = await S3().upload_qrcode(path, random_id)
-    os.remove(str(path))
-    return url
-
-
 def seconds_until(target: datetime) -> int:
     if target.tzinfo is None:
         target = target.replace(tzinfo=timezone.utc)
@@ -126,3 +116,21 @@ def extract_domain(url: str) -> str:
     
     domain = f"{parsed.scheme}://{parsed.netloc}/"
     return domain
+
+
+def coalesce(a: Optional[Any], b: Optional[Any]) -> Any:
+    if a: return a
+    return b
+
+
+def minutes_since(target_datetime: datetime, reference_time: Optional[datetime] = None) -> float:    
+    if reference_time is None:
+        reference_time = datetime.now(timezone.utc)
+        
+    if target_datetime.tzinfo is None:
+        target_datetime = target_datetime.replace(tzinfo=timezone.utc)
+    if reference_time.tzinfo is None:
+        reference_time = reference_time.replace(tzinfo=timezone.utc)
+        
+    difference = reference_time - target_datetime
+    return difference.total_seconds() / 60

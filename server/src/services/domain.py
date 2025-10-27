@@ -1,19 +1,23 @@
 from src.constants import Constants
 from src.globals import Globals
-from asyncpg import Connection
 from src.schemas.domain import DomainCreate, DomainDelete, Domain, DomainUpdate
 from src.schemas.time_perf import TimePerfCreate
 from src.tables import domains as domains_table
 from src.tables import time_perf as time_perf_table
 from src.tables import urls as urls_table
 from src.services import logs as log_service
+from asyncpg import Connection
+from asyncpg.exceptions import CheckViolationError
 from fastapi import Request, status
+from fastapi.exceptions import HTTPException
 import time
 import httpx
 
-
 async def create_domain(domain_create: DomainCreate, conn: Connection) -> Domain:
-    domain: Domain = await domains_table.create_domain(domain_create, conn)
+    try:
+        domain: Domain = await domains_table.create_domain(domain_create, conn)
+    except CheckViolationError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Url inválida")
     if not domain_create.is_secure:
         await urls_table.delete_urls_by_domain(domain, conn)
     return domain
@@ -85,3 +89,4 @@ async def update_domain(domain: DomainUpdate, conn: Connection) -> None:
     await domains_table.update_domain(domain, conn)
     if not domain.is_secure:
         await urls_table.delete_urls_by_domain(domain, conn)
+    return await domains_table.get_domain_by_id(domain.id, conn)

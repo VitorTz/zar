@@ -27,9 +27,9 @@ async def create_domain(domain: DomainCreate, conn: Connection = Depends(get_db)
     return await admin_service.create_domain(domain, conn)
 
 
-@router.put("/", status_code=status.HTTP_201_CREATED)
+@router.put("/", status_code=status.HTTP_201_CREATED, response_model=Domain)
 async def update_domain(domain: DomainUpdate, conn: Connection = Depends(get_db)):
-    await admin_service.update_domain(domain, conn)
+    return await admin_service.update_domain(domain, conn)
 
 
 @router.delete("/", status_code=status.HTTP_204_NO_CONTENT)

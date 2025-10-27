@@ -1,11 +1,15 @@
-from fastapi import APIRouter, Depends, Query
-from typing import List
+from fastapi import APIRouter, Depends, Query, status
 from src.security import require_admin
 from src.db import get_db
 from src.schemas.pagination import Pagination
-from src.schemas.time_perf import TimePerfResponse, TimePerfStats, TimePerfGroupedStats
+from src.schemas.time_perf import (
+    TimePerfResponse, 
+    TimePerfStats, 
+    TimePerfGroupedStats
+)
 from src.services import time_perf as time_perf_service
 from asyncpg import Connection
+from typing import List
 
 
 router = APIRouter(prefix="/time_perf", dependencies=[Depends(require_admin)], tags=["admin_time_perf"])
@@ -28,3 +32,8 @@ async def get_time_perf_globals_stats(conn: Connection = Depends(get_db)):
 @router.get("/stats/grouped", response_model=List[TimePerfGroupedStats])
 async def get_time_perf_grouped_stats(conn: Connection = Depends(get_db)):
     return await time_perf_service.get_time_perf_grouped_stats(conn)
+
+
+@router.delete("/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_time_perf(conn: Connection = Depends(get_db)):
+    await time_perf_service.delete_time_perf(conn)
