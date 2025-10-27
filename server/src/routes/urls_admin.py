@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from src.db import get_db
 from src.schemas.pagination import Pagination
 from src.security import require_admin
-from src.schemas.urls import URLAdminResponse
+from src.schemas.urls import URLResponse
 from src.services import admin as admin_service
 from src.services import urls as urls_service
 from asyncpg import Connection
@@ -11,7 +11,7 @@ from asyncpg import Connection
 router = APIRouter(prefix="/urls", dependencies=[Depends(require_admin)], tags=["admin_urls"])
 
 
-@router.get("/", response_model=Pagination[URLAdminResponse])
+@router.get("/", response_model=Pagination[URLResponse])
 async def get_urls(
     request: Request,
     limit: int = Query(default=64, ge=0, le=64),

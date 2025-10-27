@@ -45,8 +45,8 @@ async def refresh_token_manager(refresh_token: Optional[str] = Cookie(default=No
 
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
-async def signup(manager_signup: UserCreate, conn: Connection = Depends(get_db)):
-    await auth_service.signup(manager_signup, conn)
+async def signup(new_user: UserCreate, conn: Connection = Depends(get_db)):
+    return await auth_service.signup(new_user, conn)
 
 
 @router.post("/logout")

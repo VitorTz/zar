@@ -1,15 +1,17 @@
 from src.perf.system_monitor import get_monitor
 from src.schemas.client_info import ClientInfo
+from src.cache.config import CacheSettings
+from src.globals import Globals
 from fastapi import Request
 from pathlib import Path
 from asyncpg import Connection
 from src.s3 import S3
 from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import urlparse
+import redis.asyncio as redis
 import uuid
 import segno
-import random
-import string
 import asyncio
 import json
 import os
@@ -65,11 +67,6 @@ def get_client_info(request: Request):
     )
 
 
-def generate_short_code(length: int = 7):
-    chars = string.ascii_letters + string.digits
-    return ''.join(random.choice(chars) for _ in range(length))
-
-
 def print_dict(data: dict) -> None:
     print(json.dumps(data, indent=4, ensure_ascii=False))
 
@@ -96,25 +93,36 @@ def seconds_until(target: datetime) -> int:
     return int(diff) if diff > 0 else 0
 
 
-def json_default(obj):
-    if isinstance(obj, (datetime,)):
-        return obj.isoformat()
-    if isinstance(obj, (uuid.UUID,)):
-        return str(obj)
-    if isinstance(obj, (bytes, bytearray)):
-        return obj.hex()
-    raise TypeError(f"Type {type(obj)} not serializable")
-
-
-def convert_record_to_json(record: dict) -> str:
-    return json.dump(record, default=json_default)
-
-
-def convert_records_to_json(records: list[dict]) -> str:
-    return json.dumps(records, default=json_default)
-
-
 def datetime_has_expired(expires_at: Optional[datetime]) -> bool:
     if expires_at and isinstance(expires_at, datetime):
         return expires_at < datetime.now(timezone.utc)
     return False
+
+
+async def init_redis_cache():
+    if CacheSettings.CACHE_DEBUG:
+        print(f"[CACHE CONFIG] Redis: {CacheSettings.REDIS_HOST}:{CacheSettings.REDIS_PORT}")
+        print(f"[CACHE CONFIG] Default TTL: {CacheSettings.DEFAULT_TTL}s")
+        print(f"[CACHE CONFIG] Cache Enabled: {CacheSettings.ENABLE_CACHE}")
+        print(f"[CACHE CONFIG] Route TTLs: {CacheSettings.ROUTE_TTL}")
+        print(f"[CACHE CONFIG] No-cache paths: {len(CacheSettings.NO_CACHE_PATHS)} paths")
+    try:
+        await Globals.redis_client.ping()
+        health = await Globals.cache_service.health_check()
+        if health["status"] == "healthy":
+            print("[REDIS CONNECTED]")
+            print("[CACHE SERVICE READY]")
+        else:
+            print(f"[CACHE SERVICE WARNING]: {health}")
+    except redis.RedisError as e:
+        print(f"[REDIS ERROR]: {e}")
+
+
+def extract_domain(url: str) -> str:
+    parsed = urlparse(url.strip())
+    
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError(f"Invalid domain in URL: {url}")
+    
+    domain = f"{parsed.scheme}://{parsed.netloc}/"
+    return domain

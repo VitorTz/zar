@@ -171,35 +171,26 @@ CREATE TABLE IF NOT EXISTS domains (
 CREATE TABLE IF NOT EXISTS urls (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     short_code TEXT NOT NULL,
-    p_hash BYTEA,
     domain_id BIGINT NOT NULL,
-    title TEXT,
+    original_url TEXT NOT NULL,
+    original_url_hash BYTEA NOT NULL,
     clicks INTEGER DEFAULT 0 NOT NULL,
     last_clicked_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
     expires_at TIMESTAMPTZ,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    CONSTRAINT urls_chk_url CHECK (original_url ~ '^(https?://)([A-Za-z0-9-]+\.)+[A-Za-z]{2,}(/.*)?$'),
     CONSTRAINT urls_unique_short_code_cstr UNIQUE (short_code),
     CONSTRAINT chk_expires_after_created CHECK (expires_at IS NULL OR expires_at > created_at),
     CONSTRAINT chk_clicks_non_negative CHECK (clicks >= 0),
     FOREIGN KEY (domain_id) REFERENCES domains(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
+CREATE INDEX IF NOT EXISTS idx_urls_original_url_hash ON urls(original_url_hash);
 CREATE INDEX IF NOT EXISTS idx_urls_created_at ON urls(created_at DESC) WHERE is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_urls_expires_at ON urls(expires_at) WHERE expires_at IS NOT NULL AND is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_urls_clicks ON urls(clicks DESC) WHERE is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_urls_timestamps ON urls(created_at DESC, last_clicked_at DESC) WHERE is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_urls_active_clicks ON urls(id, clicks) WHERE is_active = TRUE;
-
-CREATE INDEX IF NOT EXISTS idx_urls_query_cover
-ON 
-    urls(domain_id, id, short_code, clicks, title, created_at, expires_at)
-INCLUDE 
-    (p_hash)
-WHERE 
-    is_active = TRUE 
-    AND p_hash IS NULL 
-    AND expires_at IS NULL 
-    AND title IS NULL;
 
 
 ------------------------------------------------

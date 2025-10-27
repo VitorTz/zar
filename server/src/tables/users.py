@@ -4,7 +4,6 @@ from src.schemas.token import Token
 from src.schemas.client_info import ClientInfo
 from asyncpg import Connection
 from uuid import UUID
-from datetime import datetime
 from typing import Optional
 
 
@@ -89,7 +88,7 @@ async def update_user_session_token(
                 expires_at = $1,
                 revoked = $2,
                 revoked_at = $3,
-                last_used_at = NOW()
+                last_used_at = CURRENT_TIMESTAMP
             WHERE
                 user_id = $4 AND
                 refresh_token = $5
@@ -146,7 +145,7 @@ async def create_user(new_user: UserCreate, conn: Connection) -> User:
         new_user.password
     )
 
-    return User(**dict(r)) if r is not None else None
+    return User(**dict(r)) if r else None
 
 
 async def register_failed_login_attempt(user_login_data: UserLoginData, conn: Connection) -> UserLoginData:
@@ -217,14 +216,14 @@ async def create_user_session_token(
                 user_agent
             )
             VALUES 
-                ($1, $2, $3, $4, $5, $6)
+                ($1, $2, $3, COALESCE($4, 'unknown'), $5, $6)
             ON CONFLICT
                 (user_id, device_ip, user_agent)
             DO UPDATE SET
                 refresh_token = EXCLUDED.refresh_token,
                 expires_at = EXCLUDED.expires_at,
                 device_name = EXCLUDED.device_name,
-                last_used_at = NOW()
+                last_used_at = CURRENT_TIMESTAMP
         """,
         user_id, 
         token.token, 
@@ -356,4 +355,39 @@ async def set_user_favorite_url(user_id: str, url_id: int, is_favorite: bool, co
         is_favorite,
         user_id,
         url_id
+    )
+
+
+async def get_sessions(limit: int, offset: int, conn: Connection) -> Pagination[UserSession]:
+    total: int = await conn.fetchval("SELECT COUNT(*) AS total FROM user_session_tokens")
+    rows = await conn.fetch(
+        """
+            SELECT
+                user_id,
+                issued_at,
+                expires_at,
+                revoked,
+                revoked_at,
+                device_name,
+                device_ip,
+                user_agent,
+                last_used_at
+            FROM
+                user_session_tokens
+            ORDER BY
+                issued_at DESC
+            LIMIT
+                $1
+            OFFSET
+                $2
+        """,
+        limit,
+        offset
+    )
+
+    return Pagination(
+        total=total,
+        limit=limit,
+        offset=offset,
+        results=[UserSession(**dict(row)) for row in rows]
     )

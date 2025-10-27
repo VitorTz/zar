@@ -1,12 +1,11 @@
 from pydantic import BaseModel, HttpUrl, field_validator
-from typing import List, Optional
 
 
 class Domain(BaseModel):
 
     id: int
     url: str
-    url_hash: Optional[str]
+    url_hash: bytes
     is_secure: bool
 
     @field_validator("url_hash", mode="before")
@@ -31,13 +30,3 @@ class DomainUpdate(BaseModel):
     
     id: int
     is_secure: bool
-
-
-class DomainPagination(BaseModel):
-
-    total: int
-    limit: int
-    offset: int
-    page: int
-    pages: int
-    results: List[Domain]

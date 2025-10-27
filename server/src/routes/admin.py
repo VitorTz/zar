@@ -5,7 +5,7 @@ from src.db import get_db
 from src.schemas.reports import SystemReport
 from src.schemas.admin import HealthReport
 from src.services import admin as admin_service
-from src.services import perf as perf_service
+from src.services import report as report_service
 from asyncpg import Connection
 import random
 
@@ -19,11 +19,11 @@ async def health_check(conn: Connection = Depends(get_db)):
 
 @router.get("/report", response_model=SystemReport)
 async def get_full_metrics_report():
-    return await perf_service.generate_full_report()
+    return await report_service.generate_full_report()
 
 @router.get("/report/html")
 async def get_full_metrics_report_html():
-    return await perf_service.generate_metric_html_report()
+    return await report_service.generate_metric_html_report()
 
 @router.api_route("/crash", methods=["GET", "POST", "PUT", "DELETE"])
 async def crash(

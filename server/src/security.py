@@ -85,13 +85,13 @@ def create_access_token(manager_id: uuid.UUID) -> Token:
         Constants.SECRET_KEY,
         algorithm=Constants.ALGORITHM
     )
-    return Token(token, expires_at)
+    return Token(token=token, expires_at=expires_at)
 
 
 def create_session_token(manager_id: uuid.UUID) -> SessionToken:
     return SessionToken(
-        create_access_token(manager_id), 
-        create_refresh_token()
+        access_token=create_access_token(manager_id), 
+        refresh_token=create_refresh_token()
     )
 
 
@@ -126,7 +126,7 @@ async def get_user_from_token(
     except JWTError:
         raise credentials_exception
     
-    manager: User | None = await users_table.get_user(user_id, conn)
+    manager: Optional[User] = await users_table.get_user(user_id, conn)
     
     if manager is None:
         raise credentials_exception
@@ -137,10 +137,9 @@ async def get_user_from_token(
 async def get_user_from_token_if_exists(
     access_token: Optional[str] = Cookie(default=None),
     conn: Connection = Depends(get_db)
-) -> User | None:
-    if access_token is None: 
-        return None
-    
+) -> Optional[User]:
+    if access_token is None: return None
+
     try:
         payload = jwt.decode(
             access_token,
@@ -179,4 +178,29 @@ def set_session_token_cookie(response: Response, session_token: SessionToken):
         samesite=samesite_policy,
         path="/",
         max_age=util.seconds_until(session_token.access_token.expires_at)
+    )
+
+
+def unset_session_token_cookie(response: Response):
+    if Constants.IS_PRODUCTION:
+        samesite_policy = "none"
+        secure_policy = True 
+    else:
+        samesite_policy = "lax"
+        secure_policy = False
+
+    response.delete_cookie(
+        key="access_token", 
+        httponly=True, 
+        path='/', 
+        samesite=samesite_policy, 
+        secure=secure_policy
+    )
+
+    response.delete_cookie(
+        key="refresh_token", 
+        httponly=True, 
+        path='/', 
+        samesite=samesite_policy, 
+        secure=secure_policy
     )

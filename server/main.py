@@ -6,7 +6,6 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.gzip import GZipMiddleware
 from src.constants import Constants
-from src.cache.config import CacheSettings
 from src.services import logs as log_service
 from src.db import db_init, db_close
 from src.perf.system_monitor import get_monitor
@@ -22,30 +21,11 @@ from src.routes import time_perf_admin
 from src.routes import domains_admin
 from src.routes import user
 from src import util
-import redis.asyncio as redis
 import time
 import contextlib
 import asyncio
 import os
 
-
-async def init_redis_cache():
-    if CacheSettings.CACHE_DEBUG:
-        print(f"[CACHE CONFIG] Redis: {CacheSettings.REDIS_HOST}:{CacheSettings.REDIS_PORT}")
-        print(f"[CACHE CONFIG] Default TTL: {CacheSettings.DEFAULT_TTL}s")
-        print(f"[CACHE CONFIG] Cache Enabled: {CacheSettings.ENABLE_CACHE}")
-        print(f"[CACHE CONFIG] Route TTLs: {CacheSettings.ROUTE_TTL}")
-        print(f"[CACHE CONFIG] No-cache paths: {len(CacheSettings.NO_CACHE_PATHS)} paths")
-    try:
-        await Globals.redis_client.ping()
-        health = await Globals.cache_service.health_check()
-        if health["status"] == "healthy":
-            print("[REDIS CONNECTED]")
-            print("[CACHE SERVICE READY]")
-        else:
-            print(f"[CACHE SERVICE WARNING]: {health}")
-    except redis.RedisError as e:
-        print(f"[REDIS ERROR]: {e}")
 
 
 @contextlib.asynccontextmanager
@@ -62,7 +42,7 @@ async def lifespan(app: FastAPI):
     await db_init()
     
     # Redis
-    await init_redis_cache()
+    await util.init_redis_cache()
 
     yield
     

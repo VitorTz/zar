@@ -4,6 +4,8 @@ from src.db import get_db
 from src.schemas.user import User, UserDelete
 from src.schemas.pagination import Pagination
 from src.services import admin as admin_service
+from src.schemas.user import UserSession
+from src.tables import users as users_table
 from asyncpg import Connection
 
 
@@ -27,3 +29,12 @@ async def delete_user(user: UserDelete, conn: Connection = Depends(get_db)):
 @router.delete("/all", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_all_users(conn: Connection = Depends(get_db)):
     return await admin_service.delete_all_users(conn)
+
+
+@router.get("/sessions", status_code=status.HTTP_200_OK, response_model=Pagination[UserSession])
+async def get_sessions(
+    limit: int = Query(default=64, ge=0, le=64),
+    offset: int = Query(default=0, ge=0),
+    conn: Connection = Depends(get_db)
+):
+    return await users_table.get_sessions(limit, offset, conn)

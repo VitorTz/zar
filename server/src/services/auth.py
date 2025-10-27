@@ -3,7 +3,6 @@ from fastapi.exceptions import HTTPException
 from fastapi import status, Request
 from asyncpg import Connection, UniqueViolationError
 from src.schemas.user import User, UserLogin, UserLoginData, UserCreate, UserSession
-from src.schemas.client_info import ClientInfo
 from src.schemas.pagination import Pagination
 from src.schemas.token import SessionToken
 from src.tables import users as users_table
@@ -55,16 +54,15 @@ async def login(login: UserLogin, request: Request, conn: Connection):
 
     await users_table.update_user_last_login_at(user_login_data.id, conn)
     
-    response = JSONResponse(
-        User(
-            id=user_login_data.id,
-            email=user_login_data.email,
-            last_login_at=user_login_data.last_login_at,
-            created_at=user_login_data.created_at
-        )
+    user = User(
+        id=user_login_data.id,
+        email=user_login_data.email,
+        last_login_at=user_login_data.last_login_at,
+        created_at=user_login_data.created_at
     )
-    
+    response = JSONResponse(content=user.model_dump(mode='json'))
     security.set_session_token_cookie(response, session_token)
+    
     return response
 
 
@@ -99,23 +97,24 @@ async def refresh_access_token(refresh_token: Optional[str], conn: Connection) -
 async def signup(new_user: UserCreate, conn: Connection):
     try:
         await users_table.create_user(new_user, conn)
+        return Response(status_code=status.HTTP_201_CREATED)
     except UniqueViolationError:
         raise HTTPException(status_code=409, detail="Email already registered")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"{e}")
 
 
-async def logout(refresh_token: str | None, conn: Connection):
-    if refresh_token is None:
+async def logout(refresh_token: Optional[str], conn: Connection):
+    if refresh_token is not None:
         await users_table.delete_user_session_token(refresh_token, conn)
     
-    response = Response(status_code=status.HTTP_200_OK)
-    security.set_session_token_cookie(response, '', '')
+    response = Response()
+    security.unset_session_token_cookie(response)
     return response
 
 
 async def logout_all(user: User, conn: Connection):
     await users_table.delete_all_user_session_tokens(user.id, conn)
-    response = Response(status_code=status.HTTP_200_OK)
-    security.set_session_token_cookie(response, '', '')
+    response = Response()
+    security.unset_session_token_cookie(response)
     return response

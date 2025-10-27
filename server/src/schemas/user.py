@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, IPvAnyAddress
 from datetime import datetime
 from typing import Optional, List
 from uuid import UUID
@@ -52,7 +52,7 @@ class UserSession(BaseModel):
     revoked: bool
     revoked_at: Optional[datetime] = None
     device_name: Optional[str] = None
-    device_ip: str
+    device_ip: IPvAnyAddress
     user_agent: Optional[str] = None
     last_used_at: datetime
 

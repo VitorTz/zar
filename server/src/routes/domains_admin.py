@@ -14,11 +14,12 @@ router = APIRouter(prefix="/domains", dependencies=[Depends(require_admin)], tag
 @router.get("/", response_model=Pagination[Domain])
 async def get_domains(
     q: Optional[str] = Query(default=None),
+    is_secure: Optional[bool] = Query(default=None),
     limit: int = Query(default=64, ge=1, le=64),
     offset: int = Query(default=0, ge=0),
     conn: Connection = Depends(get_db)
 ):
-    return await admin_service.get_domains(q, limit, offset, conn)
+    return await admin_service.get_domains(q, is_secure, limit, offset, conn)
 
 
 @router.post("/", response_model=Domain, status_code=status.HTTP_201_CREATED)

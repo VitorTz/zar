@@ -2,7 +2,7 @@ from src.security import get_user_from_token
 from src.schemas.user import User
 from src.schemas.urls import URLDelete, CreateFavoriteURL, URLResponse
 from src.schemas.pagination import Pagination
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, status
 from asyncpg import Connection
 from src.db import get_db
 from src.services import user as user_service
@@ -22,7 +22,7 @@ async def get_user_urls(
     return await user_service.get_user_urls(user.id, request, limit, offset, conn)
 
 
-@router.put("/url/favorite", response_model=URLResponse)
+@router.put("/url/favorite", status_code=status.HTTP_201_CREATED)
 async def set_favorite_url(
     url: CreateFavoriteURL,
     request: Request,

@@ -1,12 +1,10 @@
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from src.perf.system_monitor import get_monitor
 from src.schemas.reports import SystemReport
 from datetime import datetime, timezone
 
 
 def generate_analysis(memory_info: dict, cpu_info: dict, process_info: dict) -> dict:
-    """Gera análise das métricas e recomendações"""
-    
     # Análise de memória
     memory_percent = memory_info.get("process", {}).get("percent", 0)
     memory_mb = memory_info.get("process", {}).get("rss_mb", 0)
@@ -99,7 +97,6 @@ def generate_analysis(memory_info: dict, cpu_info: dict, process_info: dict) -> 
 
 
 def calculate_network_error_rate(network_info: dict) -> float:
-    """Calcula taxa de erro de rede"""
     io = network_info.get("io", {})
     total_packets = io.get("packets_sent", 0) + io.get("packets_recv", 0)
     total_errors = io.get("errors_in", 0) + io.get("errors_out", 0)

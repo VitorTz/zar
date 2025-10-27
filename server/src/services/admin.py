@@ -51,8 +51,8 @@ async def soft_delete_expired_urls(conn: Connection):
     await urls_table.soft_delete_expired_urls(conn)
 
 
-async def get_domains(q: Optional[str], limit: int, offset: int, conn: Connection):
-    return await domains_table.get_domains(q, limit, offset, conn)
+async def get_domains(q: Optional[str], is_secure: Optional[bool], limit: int, offset: int, conn: Connection):
+    return await domains_table.get_domains(q, is_secure, limit, offset, conn)
 
 
 async def create_domain(domain: DomainCreate, conn: Connection) -> Domain:

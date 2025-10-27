@@ -1,5 +1,5 @@
 from src.schemas.user import User
-from src.schemas.urls import URLCreate, UrlRedirect, URLAdminResponse, URLResponse, UrlStats
+from src.schemas.urls import URLCreate, UrlRedirect, URLResponse, UrlStats
 from src.schemas.pagination import Pagination
 from src.schemas.domain import Domain
 from fastapi.exceptions import HTTPException
@@ -9,11 +9,12 @@ from user_agents import parse
 from src.globals import Globals
 from asyncpg import Connection
 import asyncpg
+import json
 
 
-async def count_urls(conn: Connection) -> int:
-    total: int = await conn.fetchval("SELECT COUNT(*) AS total FROM urls")
-    return total
+async def url_exists(url_id: int, conn: Connection) -> bool:
+    r = await conn.fetchval("SELECT id FROM urls WHERE id = $1", url_id)
+    return r is not None
 
 
 async def get_redirect_url(short_code: str, conn: Connection) -> Optional[UrlRedirect]:
@@ -21,237 +22,158 @@ async def get_redirect_url(short_code: str, conn: Connection) -> Optional[UrlRed
         """
             SELECT
                 urls.id,
-                urls.p_hash,
-                domains.url as original_url,
+                urls.original_url,
                 urls.expires_at
             FROM
                 urls
-            JOIN
-                domains ON domains.id = urls.domain_id
             WHERE
                 short_code = TRIM($1) AND
                 is_active = TRUE
-
         """,
         short_code
     )
     return UrlRedirect(**dict(r)) if r else None
 
 
-async def get_original_url(short_code: str, conn: Connection) -> Optional[str]:
-    r = await conn.fetchrow(
+async def get_url_id_by_short_code(short_code: str, conn: Connection) -> Optional[int]:
+    return await conn.fetchval(
         """
             SELECT 
-                domains.url as original_url
+                id 
             FROM 
                 urls 
-            JOIN
-                domains ON domains.id = urls.domain_id
             WHERE 
                 short_code = TRIM($1)
-        """,
+        """, 
         short_code
     )
-    return r["original_url"] if r else None
 
 
-async def get_url_id_by_short_code(short_code: str, conn: Connection) -> Optional[int]:
-    return await conn.fetchval("SELECT id FROM urls WHERE short_code = $1", short_code)
-
-
-async def get_url(short_code: str, base_url: str, conn: Connection) -> Optional[URLResponse]:
-    r = await conn.fetchrow(
+async def get_url_id(short_code: str, conn: Connection) -> Optional[int]:
+    url_id: Optional[int] = await conn.fetchval(
         """
             SELECT
-                id,
-                domains.id as domain_id,
-                domains.url as original_url,
-                short_code,
-                clicks,
-                title,
-                is_favorite,
-                (p_hash IS NOT NULL) AS has_password,
-                TO_CHAR(created_at, 'DD-MM-YYYY HH24:MI:SS') as created_at,
-                TO_CHAR(expires_at, 'DD-MM-YYYY HH24:MI:SS') as expires_at
+                urls.id,
             FROM
                 urls
-            JOIN
-                domains ON domains.id = urls.domain_id
             WHERE
                 short_code = TRIM($1)
         """,
         short_code
     )
+    return url_id
+    
+
+
+async def get_urls(base_url: str, limit: int, offset: int, conn: Connection) -> Pagination[URLResponse]:
+    total: int = await conn.fetchval("SELECT COUNT(*) AS total FROM urls")
+    rows = await conn.fetch(
+        """
+            SELECT
+                urls.id,
+                urls.domain_id,
+                urls.original_url,
+                urls.original_url_hash,
+                user_urls.user_id,
+                urls.short_code,
+                urls.clicks,
+                COALESCE(user_urls.is_favorite, FALSE) AS is_favorite,
+                urls.created_at,
+                urls.expires_at
+            FROM 
+                urls
+            JOIN
+                domains ON domains.id = urls.domain_id
+            LEFT JOIN
+                user_urls ON user_urls.url_id = urls.id                            
+            ORDER BY 
+                urls.created_at DESC
+        """
+    )
+    
+    return Pagination(
+        total=total,
+        limit=limit,
+        offset=offset,
+        results=[URLResponse(**dict(row), short_url=f"{base_url}/api/v1/{row['short_code']}") for row in rows]
+    )
+
+
+async def get_anonymous_url(domain: Domain, base_url: str, url: URLCreate, conn: Connection) -> Optional[URLResponse]:
+    r = await conn.fetchrow(
+        """
+            SELECT 
+                urls.id,
+                urls.domain_id,
+                urls.original_url,
+                urls.short_code,
+                urls.clicks,
+                urls.created_at,
+                urls.expires_at
+            FROM 
+                urls
+            JOIN 
+                domains ON domains.id = urls.domain_id
+            LEFT JOIN 
+                user_urls ON user_urls.url_id = urls.id
+            WHERE
+                urls.domain_id = $1
+                AND urls.original_url_hash = decode(md5(TRIM($2)), 'hex')
+                AND user_urls.url_id IS NULL
+                AND urls.expires_at IS NULL
+                AND urls.is_active = TRUE
+        """,
+        domain.id,
+        str(url.url)
+    )
+
+    return URLResponse(
+        **dict(r), 
+        short_url=f"{base_url}/api/v1/{r['short_code']}"
+    ) if r else None
+
+
+async def get_user_url(domain: Domain, base_url: str, url: URLCreate, user_id: str, conn: Connection) -> Optional[URLResponse]:
+    r = await conn.fetchrow(
+        """
+            SELECT
+                urls.id,
+                urls.domain_id,
+                user_urls.user_id,
+                urls.original_url,
+                urls.short_code,
+                urls.clicks,
+                user_urls.is_favorite,
+                urls.created_at,
+                urls.expires_at
+            FROM 
+                urls
+            JOIN
+                domains ON domains.id = urls.domain_id
+            JOIN
+                user_urls ON user_urls.url_id = urls.id AND user_urls.user_id = $1
+            WHERE
+                urls.original_url_hash = decode(md5(TRIM($2)), 'hex')
+                AND domains.id = $3
+                AND urls.expires_at IS NULL
+                AND urls.is_active = TRUE
+                AND (urls.expires_at IS NULL OR urls.expires_at = $4::TIMESTAMPTZ)
+        """,
+        user_id,
+        str(url.url),
+        domain.id,
+        url.expires_at
+    )
+
     return URLResponse(
         **dict(r),
         short_url=f"{base_url}/api/v1/{r['short_code']}"
     ) if r else None
 
 
-async def get_url_pages(base_url: str, user_id: str | None, limit: int, offset: int, conn: Connection) -> Pagination[URLAdminResponse]:
-    if user_id is None:
-        total: int = await conn.fetchval("SELECT COUNT(*) AS total FROM urls")
-        rows = await conn.fetch(
-            """
-                SELECT
-                    urls.id,
-                    domains.id as domain_id,
-                    domains.url as original_url,
-                    urls.p_hash,
-                    urls.short_code,
-                    urls.clicks,
-                    urls.title,
-                    (urls.p_hash IS NOT NULL) AS has_password,
-                    (FALSE) as is_favorite,
-                    urls.created_at,
-                    urls.expires_at
-                FROM
-                    urls
-                JOIN
-                    domains ON domains.id = urls.domain_id
-                LIMIT
-                    $1
-                OFFSET 
-                    $2
-            """,
-            limit,
-            offset
-        )        
-
-        return Pagination[URLAdminResponse](
-            total=total,
-            limit=limit,
-            offset=offset,
-            results=[URLAdminResponse(**dict(row), short_url=f"{base_url}/api/v1/{row['short_code']}") for row in rows]
-        )
-    
-    total: int = await conn.fetchval(
-        """
-            SELECT 
-                COUNT(*) AS total 
-            FROM 
-                urls
-            JOIN 
-                user_urls ON user_urls.url_id = urls.id
-            WHERE
-                user_urls.user_id = $1
-        """,
-        user_id
-    )
-    r = await conn.fetch(
-        """
-            SELECT
-                urls.id,
-                user_urls.user_id,
-                domains.id as domain_id,
-                domains.url as original_url,
-                urls.p_hash,
-                urls.short_code,
-                urls.clicks,
-                urls.title,
-                (urls.p_hash IS NOT NULL) AS has_password,
-                user_urls.is_favorite,
-                urls.created_at,
-                urls.expires_at
-            FROM
-                urls
-            JOIN
-                domains ON domains.id = urls.domain_id
-            JOIN 
-                user_urls ON user_urls.url_id = urls.id
-            WHERE
-                user_urls.user_id = $1
-            LIMIT 
-                $2
-            OFFSET 
-                $3
-        """,
-        user_id,
-        limit,
-        offset
-    )
-    return Pagination[URLAdminResponse](
-        total=total,
-        limit=limit,
-        offset=offset,
-        results=[URLAdminResponse(**dict(i), short_url=f"{base_url}/api/v1/{r['short_code']}") for i in r]
-    )    
-
-
-
-async def get_anonymous_url(domain: Domain, base_url: str, conn: Connection) -> Optional[URLResponse]:
-    r = await conn.fetchrow(
-        """
-            SELECT 
-                u.id,
-                u.short_code,
-                u.clicks,
-                u.title,
-                u.created_at,
-                u.expires_at
-            FROM 
-                urls u
-            JOIN 
-                domains d ON d.id = u.domain_id
-            LEFT JOIN 
-                user_urls uu ON uu.url_id = u.id
-            WHERE
-                u.domain_id = $1
-                AND uu.url_id IS NULL
-                AND u.p_hash IS NULL
-                AND u.expires_at IS NULL
-                AND u.title IS NULL
-                AND u.is_active = TRUE;
-        """,
-        domain.id
-    )
-
-    return URLResponse(
-        **dict(r), 
-        short_url=f"{base_url}/api/v1/{r['short_code']}",
-        original_url=domain.url,
-        has_password=False,
-        domain_id=domain.id
-    ) if r else None
-
-
-async def get_user_url(domain: Domain, base_url: str, user_id: str, title: Optional[str], conn: Connection) -> Optional[URLResponse]:
-    r = await conn.fetchrow(
-        """
-            SELECT
-                urls.id,
-                user_urls.user_id,
-                urls.short_code,
-                urls.clicks,
-                (urls.p_hash IS NOT NULL) AS has_password,
-                user_urls.is_favorite,
-                urls.created_at,
-                urls.expires_at
-            FROM 
-                urls
-            JOIN
-                domains ON domains.id = urls.domain_id
-            JOIN
-                user_urls ON user_urls.url_id = urls.id
-            WHERE
-                user_urls.user_id = $1 AND
-                domains.id = $2 AND
-                urls.title = $3 AND
-                (urls.expires_at IS NULL OR urls.expires_at > CURRENT_TIMESTAMP) AND
-                is_active = TRUE
-        """,
-        user_id,
-        domain.id,
-        title
-    )
-
-    return URLResponse(
-        **dict(r),
-        short_url=f"{base_url}/api/v1/{r['short_code']}",
-        original_url=domain.url,
-        title=title,
-        domain_id=domain.id
-    ) if r else None
+async def get_url_if_exists(domain: Domain, url: URLCreate, base_url: str, user: Optional[User], conn: Connection) -> URLResponse:
+    if user: return await get_user_url(domain, base_url, url, user.id, conn)
+    return await get_anonymous_url(domain, base_url, url, conn)
 
 
 async def create_anonymous_url(domain: Domain, url: URLCreate, base_url: str, conn: Connection) -> URLResponse:
@@ -259,37 +181,33 @@ async def create_anonymous_url(domain: Domain, url: URLCreate, base_url: str, co
         r = await conn.fetchrow(
             """
                 INSERT INTO urls (
-                    p_hash,
                     domain_id,
-                    title,
+                    original_url,
+                    original_url_hash,
                     expires_at
                 )
                 VALUES (
-                    decode(md5(TRIM($1)), 'hex'),
+                    $1,                    
                     $2,
-                    TRIM($3),
-                    $4
+                    decode(md5(TRIM($2)), 'hex'),
+                    $3
                 )
                 RETURNING
                     id,
+                    domain_id,
                     short_code,
-                    title,
-                    (urls.p_hash IS NOT NULL) AS has_password,
+                    original_url,
                     created_at,
                     expires_at
             """,
-            url.password,
             domain.id,
-            url.title,
+            str(url.url),
             url.expires_at
         )
     
         return URLResponse(
             **dict(r),
-            original_url=domain.url,
-            is_favorite=url.is_favorite,
-            short_url=f"{base_url}/api/v1/{r['short_code']}",
-            domain_id=domain.id
+            short_url=f"{base_url}/api/v1/{r['short_code']}"
         )
     except asyncpg.exceptions.CheckViolationError:
         raise HTTPException(detail=f"Invalid url! {url.url}", status_code=status.HTTP_400_BAD_REQUEST)
@@ -314,26 +232,28 @@ async def create_user_url(
             r = await conn.fetchrow(
                 """
                     INSERT INTO urls (
-                        p_hash,
                         domain_id,
-                        expires_at,
-                        title
+                        original_url,
+                        original_url_hash,
+                        expires_at
                     )
                     VALUES (
-                        decode(md5(TRIM($1)), 'hex')::bytea, 
-                        $2, 
-                        $3, 
-                        TRIM($4)
+                        $1, 
+                        $2,
+                        decode(md5(TRIM($2)), 'hex'),
+                        $3
                     )
                     RETURNING
                         id,
+                        domain_id,
                         short_code,
-                        created_at
+                        original_url,
+                        created_at,
+                        expires_at
                 """,
-                url.password,
                 domain.id,
-                url.expires_at,
-                url.title
+                str(url.url),
+                url.expires_at
             )
 
             await conn.execute(
@@ -354,13 +274,8 @@ async def create_user_url(
             return URLResponse(
                 **dict(r),
                 user_id=user.id,
-                original_url=domain.url,
-                expires_at=url.expires_at,
-                has_password=url.password is not None,
                 is_favorite=url.is_favorite or False,
-                title=url.title,
-                short_url=f"{base_url}/api/v1/{r['short_code']}",
-                domain_id=domain.id
+                short_url=f"{base_url}/api/v1/{r['short_code']}"
             )
     except asyncpg.exceptions.CheckViolationError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid URL: {url.url}")
@@ -370,7 +285,19 @@ async def create_user_url(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     
 
-async def update_clicks(url_id: int, conn: Connection):
+async def create_url(
+    domain: Domain,
+    url: URLCreate,
+    user: Optional[User],
+    base_url: str,
+    conn: Connection
+) -> URLResponse:
+    if user:
+        return await create_user_url(domain, url, user, base_url, conn)
+    return await create_anonymous_url(domain, url, base_url, conn)
+
+
+async def update_url_clicks(url_id: int, conn: Connection):
     await conn.execute("SELECT increment_url_clicks($1)", url_id)
 
 
@@ -381,19 +308,17 @@ async def get_user_urls(
     base_url: str, 
     conn: Connection
 ) -> Pagination[URLResponse]:
-    total: int = await conn.fetchval("SELECT COUNT(*) AS total FROM urls WHERE user_id = $1", user_id)
+    total: int = await conn.fetchval("SELECT COUNT(*) AS total FROM user_urls WHERE user_id = $1", user_id)
 
     rows = await conn.fetch(
         """
             SELECT
                 urls.id,
                 domains.id as domain_id,
-                domains.url as original_url,
+                urls.original_url,
                 urls.short_code,
                 urls.clicks,
-                (urls.p_hash IS NOT NULL) AS has_password,
                 user_urls.is_favorite,
-                urls.title,
                 urls.created_at,
                 urls.expires_at
             FROM
@@ -575,10 +500,10 @@ async def get_url_stats(url_id: int, conn: Connection) -> Optional[UrlStats]:
                 MIN(clicked_at) AS first_click,
                 MAX(clicked_at) AS last_click,
                 COUNT(*) FILTER (WHERE DATE(clicked_at) = CURRENT_DATE) AS clicks_today,
-                json_agg(DISTINCT browser) AS browsers,
-                json_agg(DISTINCT os) AS operating_systems,
-                json_agg(DISTINCT device_type) AS device_types,
-                json_agg(DISTINCT country_code) AS countries
+                COALESCE(jsonb_agg(DISTINCT browser), '[]'::jsonb) AS browsers,
+                COALESCE(jsonb_agg(DISTINCT os), '[]'::jsonb) AS operating_systems,
+                COALESCE(jsonb_agg(DISTINCT device_type), '[]'::jsonb) AS device_types,
+                COALESCE(jsonb_agg(DISTINCT country_code), '[]'::jsonb) AS countries
             FROM 
                 url_analytics
             WHERE 
@@ -588,4 +513,16 @@ async def get_url_stats(url_id: int, conn: Connection) -> Optional[UrlStats]:
         """,
         url_id
     )
-    return UrlStats(**dict(r)) if r else None
+
+    if not r:
+        return None
+
+    data = dict(r)
+    for key in ("browsers", "operating_systems", "device_types", "countries"):
+        val = data.get(key)
+        if isinstance(val, str):
+            try:
+                data[key] = [x for x in json.loads(val) if x]
+            except json.JSONDecodeError:
+                data[key] = []
+    return UrlStats(**data)
