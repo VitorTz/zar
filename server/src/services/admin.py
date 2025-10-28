@@ -10,6 +10,8 @@ from src.schemas.admin import (
     CpuInfo, 
     DiskInfo
 )
+from src.schemas.pagination import Pagination
+from src.schemas.user import UserSession
 from src.tables import users as users_table
 from src.tables import domains as domains_table
 from src.tables import urls as urls_table
@@ -86,6 +88,12 @@ async def update_domain(domain: DomainUpdate, conn: Connection) -> Domain:
 async def delete_all_user_sessions(conn: Connection) -> None:
     await users_table.delete_sessions(conn)
 
+async def get_user_sessions(limit: int, offset: int, conn: Connection) -> Pagination[UserSession]:
+    return await users_table.get_sessions(limit, offset, conn)
+
+
+async def cleanup_expired_sessions(conn: Connection) -> None:
+    await users_table.cleanup_expired_sessions(conn)
 
 async def reset_database(conn: Connection) -> None:
     statements = [

@@ -25,7 +25,8 @@ async def get_full_metrics_report():
 async def get_full_metrics_report_html():
     return await report_service.generate_metric_html_report()
 
-@router.api_route("/crash", methods=["GET", "POST", "PUT", "DELETE"])
+
+@router.get("/crash")
 async def crash(
     message: Optional[str] = Query(default="Manual crash triggered."),
     code: Optional[int] = Query(default=500, ge=100, le=599),
@@ -37,6 +38,42 @@ async def crash(
     raise HTTPException(status_code=code, detail=message)
 
 
-@router.post("/reset", status_code=status.HTTP_200_OK)
+@router.post("/crash")
+async def crash(
+    message: Optional[str] = Query(default="Manual crash triggered."),
+    code: Optional[int] = Query(default=500, ge=100, le=599),
+    randomize: Optional[bool] = Query(default=False),
+    probability: Optional[float] = Query(default=1.0, ge=0.0, le=1.0)
+):
+    if randomize and random.random() > probability:
+        return {"status": "ok", "detail": "Crash evitado por probabilidade"}
+    raise HTTPException(status_code=code, detail=message)
+
+
+@router.put("/crash")
+async def crash(
+    message: Optional[str] = Query(default="Manual crash triggered."),
+    code: Optional[int] = Query(default=500, ge=100, le=599),
+    randomize: Optional[bool] = Query(default=False),
+    probability: Optional[float] = Query(default=1.0, ge=0.0, le=1.0)
+):
+    if randomize and random.random() > probability:
+        return {"status": "ok", "detail": "Crash evitado por probabilidade"}
+    raise HTTPException(status_code=code, detail=message)
+
+
+@router.delete("/crash")
+async def crash(
+    message: Optional[str] = Query(default="Manual crash triggered."),
+    code: Optional[int] = Query(default=500, ge=100, le=599),
+    randomize: Optional[bool] = Query(default=False),
+    probability: Optional[float] = Query(default=1.0, ge=0.0, le=1.0)
+):
+    if randomize and random.random() > probability:
+        return {"status": "ok", "detail": "Crash evitado por probabilidade"}
+    raise HTTPException(status_code=code, detail=message)
+
+
+@router.post("/reset", status_code=status.HTTP_204_NO_CONTENT)
 async def reset_database(conn: Connection = Depends(get_db)):
     await admin_service.reset_database(conn)

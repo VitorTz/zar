@@ -5,7 +5,6 @@ from src.schemas.user import User, UserDelete
 from src.schemas.pagination import Pagination
 from src.services import admin as admin_service
 from src.schemas.user import UserSession
-from src.tables import users as users_table
 from asyncpg import Connection
 
 
@@ -42,6 +41,9 @@ async def get_sessions(
     offset: int = Query(default=0, ge=0),
     conn: Connection = Depends(get_db)
 ):
-    return await users_table.get_sessions(limit, offset, conn)
+    return await admin_service.get_user_sessions(limit, offset, conn)
 
 
+@router.delete("/sessions/expired", status_code=status.HTTP_204_NO_CONTENT)
+async def cleanup_expired_sessions(conn: Connection = Depends(get_db)):
+    await admin_service.cleanup_expired_sessions(conn)

@@ -69,22 +69,6 @@ END;
 $$ LANGUAGE plpgsql;
 ------------------------------------------------
 
-----------------[CLEANUP ANALYTICS]-------------
--- Função para limpar analytics antigos (manutenção)
-CREATE OR REPLACE FUNCTION cleanup_old_analytics(months_to_keep INTEGER DEFAULT 12)
-RETURNS INTEGER AS $$
-DECLARE
-    deleted_count INTEGER;
-BEGIN
-    DELETE FROM url_analytics
-    WHERE clicked_at < NOW() - (months_to_keep || ' months')::INTERVAL;
-    
-    GET DIAGNOSTICS deleted_count = ROW_COUNT;
-    RETURN deleted_count;
-END;
-$$ LANGUAGE plpgsql;
-------------------------------------------------
-
 ------------------------------------------------
 ----               [TABLES]                 ----
 ------------------------------------------------

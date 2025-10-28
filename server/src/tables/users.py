@@ -395,3 +395,7 @@ async def get_sessions(limit: int, offset: int, conn: Connection) -> Pagination[
 
 async def delete_sessions(conn: Connection):
     await conn.execute("DELETE FROM user_session_tokens")
+
+
+async def cleanup_expired_sessions(conn: Connection):
+    await conn.execute("SELECT cleanup_expired_sessions()")
