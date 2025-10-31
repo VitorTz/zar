@@ -36,26 +36,16 @@ async def get_urls(
     )
 
 
-async def shorten(url: URLCreate, refresh_token: Optional[str], user: Optional[User], request: Request, conn: Connection) -> JSONResponse:
-    base_url: str = util.extract_base_url(request)
+async def shorten(url: URLCreate, request: Request, conn: Connection, refresh_token: Optional[str], user: Optional[User]) -> JSONResponse:    
     domain: Domain = await domains_table.get_domain(str(url.url), conn)
-
-    if not domain.is_secure or not await domain_service.is_safe_domain(request, domain, conn):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="URL potencialmente maliciosa!.")
-
-    url_response: Optional[URLResponse] = await urls_table.get_url_if_exists(
-        domain,
-        url,
-        base_url,
-        user,
-        conn
-    )
-
-    if url_response is None:
-        url_response: URLResponse = await urls_table.create_url(domain, url, user, base_url, conn)
     
-    response = JSONResponse(content=url_response.model_dump(mode="json"))
+    if not domain.is_secure or not await domain_service.is_safe_domain(request, domain, conn):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This domain is potentially malicious.")
+    
+    base_url: str = util.extract_base_url(request)
+    url_response: URLResponse = await urls_table.create_url(domain, url, user, base_url, conn)
 
+    response = JSONResponse(content=url_response.model_dump(mode="json"))
     if not user and refresh_token:
         user = await users_table.get_user_by_refresh_token(refresh_token, conn)
         if user:
@@ -75,17 +65,11 @@ async def redirect_from_short_code(
     url: Optional[UrlRedirect] = await urls_table.get_redirect_url(short_code, conn)
 
     if url is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="URL não encontrada")
-    
-    if util.datetime_has_expired(url.expires_at):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="URL expirou")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="URL not found.")
 
     await urls_table.add_click_event(url.id, request, conn)
     
-    return RedirectResponse(
-        url=url.original_url,
-        status_code=status.HTTP_307_TEMPORARY_REDIRECT
-    )
+    return RedirectResponse(url=url.original_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
 
 async def get_url_stats(short_code: str, conn: Connection) -> UrlStats:
@@ -93,14 +77,14 @@ async def get_url_stats(short_code: str, conn: Connection) -> UrlStats:
     if url_id is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"URL with short code {short_code} has no statistics yet."
+            detail=f"The URL with short code {short_code} was not found or has no statistics yet."
         )
     
     url_stats: Optional[UrlStats] = await urls_table.get_url_stats(url_id, conn)
     if url_stats is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"URL with short code {short_code} has no statistics yet."
+            detail=f"The URL with short code {short_code} was not found or has no statistics yet."
         )
     return url_stats
 

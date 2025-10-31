@@ -18,8 +18,8 @@ async def shorten_url(
     refresh_token: Optional[str] = Cookie(default=None),
     user: Optional[User] = Depends(get_user_from_token_if_exists),
     conn: Connection = Depends(get_db)
-):      
-    return await url_service.shorten(url, refresh_token, user, request, conn)
+):
+    return await url_service.shorten(url, request, conn, refresh_token, user)
 
 
 @router.get("/{short_code}")

@@ -4,16 +4,12 @@ from datetime import datetime
 from uuid import UUID
 
 
-class ExpiredUrl(BaseModel):
-
-    original_url: str
-    expires_at: datetime
-    
 
 class URLCreate(BaseModel):
 
     url: HttpUrl
-    expires_at: Optional[datetime] = None
+    title: Optional[str] = None
+    descr: Optional[str] = None
     is_favorite: Optional[bool] = False
 
 
@@ -36,6 +32,8 @@ class CreateFavoriteURL(BaseModel):
 class URLResponse(BaseModel):
     
     id: int
+    title: Optional[str]
+    descr: Optional[str]
     domain_id: int
     user_id: Optional[UUID] = None
     original_url: str
@@ -44,7 +42,6 @@ class URLResponse(BaseModel):
     clicks: int = 0
     is_favorite: Optional[bool] = False
     created_at: datetime
-    expires_at: Optional[datetime] = None
 
 
 class UrlPagination(BaseModel):
@@ -105,7 +102,6 @@ class UrlRedirect(BaseModel):
 
     id: int
     original_url: str
-    expires_at: Optional[datetime] = None
 
 
 class UrlStats(BaseModel):

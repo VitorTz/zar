@@ -30,11 +30,3 @@ async def delete_url(url: URLDelete, conn: Connection = Depends(get_db)):
 @router.delete("/all", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_all_urls(conn: Connection = Depends(get_db)):
     return await admin_service.delete_all_urls(conn)
-
-@router.delete("/expired", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_expired_urls(conn: Connection = Depends(get_db)):
-    return await admin_service.delete_expired_urls(conn)
-
-@router.delete("/expired/soft", status_code=status.HTTP_204_NO_CONTENT)
-async def soft_delete_expired_urls(conn: Connection = Depends(get_db)):
-    return await admin_service.soft_delete_expired_urls(conn)

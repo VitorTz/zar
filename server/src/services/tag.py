@@ -56,7 +56,7 @@ async def update_tag(user: User, tag: UrlTagUpdate, conn: Connection) -> UrlTag:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
     if updated_tag is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tag não encontrada!")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="This tag doesn't exist.")
     return updated_tag
 
 

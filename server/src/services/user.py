@@ -21,6 +21,6 @@ async def get_user_urls(user_id: str, request: Request, limit: int, offset: int,
 
 async def set_user_favorite_url(user: User, url: CreateFavoriteURL, conn: Connection):        
     if not await urls_table.user_url_exists(user.id, url.url_id, conn):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Url não encontrada ou não pertence a você")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="This URL was not found or does not belong to you.")
     await users_table.set_user_favorite_url(user.id, url.url_id, url.is_favorite, conn)    
     return Response(status_code=status.HTTP_201_CREATED)

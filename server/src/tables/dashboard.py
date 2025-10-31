@@ -1,5 +1,6 @@
 from src.schemas.dashboard import Dashboard
 from asyncpg import Connection
+from src.db import db_count
 import json
 
 
@@ -8,6 +9,7 @@ async def refresh_dashboard(conn: Connection):
 
 
 async def get_dashboard(conn: Connection) -> Dashboard:
+    total_urls: int = await db_count('urls', conn)
     row = await conn.fetchrow("SELECT * FROM mv_dashboard;")
     if not row:
         raise ValueError("No dashboard data found")
@@ -25,4 +27,4 @@ async def get_dashboard(conn: Connection) -> Dashboard:
         if isinstance(value, str):
             data[field] = json.loads(value)
 
-    return Dashboard(**data)
+    return Dashboard(**data, total_urls=total_urls)

@@ -11,7 +11,7 @@ from src.schemas.admin import (
     DiskInfo
 )
 from src.schemas.pagination import Pagination
-from src.schemas.user import UserSession
+from src.schemas.user import UserSession, User
 from src.tables import users as users_table
 from src.tables import domains as domains_table
 from src.tables import urls as urls_table
@@ -20,21 +20,25 @@ from fastapi.exceptions import HTTPException
 from fastapi import status
 from asyncpg import Connection
 from typing import Optional
-from src.db import db_count, db_version
+from src.db import db_count, db_version, db_reset
 from src.migrate import db_migrate
 from src.perf.system_monitor import get_monitor
 from datetime import datetime
 
 
-async def get_system_health(conn: Connection):
+async def get_system_health(conn: Connection) -> HealthReport:
     version: str = await db_version(conn)
     total_urls: int = await db_count("urls", conn)
-    monitor = get_monitor() 
+    total_users: int = await db_count("users", conn)
+    total_domains: int = await db_count("domains", conn)
+    monitor = get_monitor()
     return HealthReport(
         status="healthy",
         database="connected",
         postgres_version=version,
         total_urls=total_urls,
+        total_users=total_users,
+        total_domains=total_domains,
         now=datetime.now(),
         memory=MemoryInfo(**monitor.get_memory_info()),
         cpu=CpuInfo(**monitor.get_cpu_info()),
@@ -42,7 +46,7 @@ async def get_system_health(conn: Connection):
     )
 
 
-async def get_users(limit: int, offset: int, conn: Connection):
+async def get_users(limit: int, offset: int, conn: Connection) -> Pagination[User]:
     return await users_table.get_users(limit, offset, conn)
     
 
@@ -54,19 +58,13 @@ async def delete_all_users(conn: Connection):
     await users_table.delete_all_users(conn)
 
 
-async def delete_all_urls(conn: Connection):
-    await urls_table.delete_all_urls(conn)
-
-
-async def delete_expired_urls(conn: Connection):
-    await urls_table.delete_expired_urls(conn)
-
-
-async def soft_delete_expired_urls(conn: Connection):
-    await urls_table.soft_delete_expired_urls(conn)
-
-
-async def get_domains(q: Optional[str], is_secure: Optional[bool], limit: int, offset: int, conn: Connection):
+async def get_domains(
+    q: Optional[str], 
+    is_secure: Optional[bool], 
+    limit: int, 
+    offset: int, 
+    conn: Connection
+) -> Pagination[Domain]:
     return await domains_table.get_domains(q, is_secure, limit, offset, conn)
 
 
@@ -88,6 +86,7 @@ async def update_domain(domain: DomainUpdate, conn: Connection) -> Domain:
 async def delete_all_user_sessions(conn: Connection) -> None:
     await users_table.delete_sessions(conn)
 
+
 async def get_user_sessions(limit: int, offset: int, conn: Connection) -> Pagination[UserSession]:
     return await users_table.get_sessions(limit, offset, conn)
 
@@ -95,25 +94,10 @@ async def get_user_sessions(limit: int, offset: int, conn: Connection) -> Pagina
 async def cleanup_expired_sessions(conn: Connection) -> None:
     await users_table.cleanup_expired_sessions(conn)
 
+
 async def reset_database(conn: Connection) -> None:
-    statements = [
-        "DROP TABLE IF EXISTS users CASCADE;",
-        "DROP TABLE IF EXISTS user_session_tokens CASCADE;",
-        "DROP TABLE IF EXISTS user_login_attempts CASCADE;",
-        "DROP TABLE IF EXISTS domains CASCADE;",
-        "DROP TABLE IF EXISTS urls CASCADE;",
-        "DROP TABLE IF EXISTS user_urls CASCADE;",
-        "DROP TABLE IF EXISTS url_tags CASCADE;",
-        "DROP TABLE IF EXISTS url_tag_relations CASCADE;",
-        "DROP TABLE IF EXISTS url_analytics CASCADE;",
-        "DROP TABLE IF EXISTS logs CASCADE;",
-        "DROP TABLE IF EXISTS time_perf CASCADE;",
-        "DROP TABLE IF EXISTS rate_limit_logs CASCADE;",
-        "DROP MATERIALIZED VIEW IF EXISTS mv_dashboard CASCADE;",
-        "DROP FUNCTION IF EXISTS increment_url_clicks CASCADE;"
-    ]
+    await db_reset(db_migrate, conn)
 
-    for stmt in statements:
-        await conn.execute(stmt)
 
-    await db_migrate(conn)
+async def delete_all_urls(conn: Connection) -> None:
+    await urls_table.delete_all_urls(conn)

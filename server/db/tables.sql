@@ -138,6 +138,8 @@ CREATE INDEX IF NOT EXISTS idx_domains_url_hash ON domains USING hash(url_hash);
 ---------------------[URLS]----------------------
 CREATE TABLE IF NOT EXISTS urls (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    title TEXT,
+    descr TEXT,
     short_code TEXT NOT NULL,
     domain_id BIGINT NOT NULL,
     original_url TEXT NOT NULL,
@@ -145,21 +147,17 @@ CREATE TABLE IF NOT EXISTS urls (
     clicks INTEGER DEFAULT 0 NOT NULL,
     last_clicked_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    expires_at TIMESTAMPTZ,
-    is_active BOOLEAN DEFAULT TRUE NOT NULL,
-    CONSTRAINT urls_chk_url CHECK (original_url ~ '^(https?://)([A-Za-z0-9-]+\.)+[A-Za-z]{2,}(/.*)?$'),
     CONSTRAINT urls_unique_short_code_cstr UNIQUE (short_code),
-    CONSTRAINT chk_expires_after_created CHECK (expires_at IS NULL OR expires_at > created_at),
     CONSTRAINT chk_clicks_non_negative CHECK (clicks >= 0),
+    CONSTRAINT chk_descr_length CHECK (length(descr) <= 2048),
+    CONSTRAINT chk_title_length CHECK (length(title) <= 256),
     FOREIGN KEY (domain_id) REFERENCES domains(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
-CREATE INDEX IF NOT EXISTS idx_urls_original_url_hash ON urls USING hash(original_url_hash);
-CREATE INDEX IF NOT EXISTS idx_urls_created_at ON urls(created_at DESC) WHERE is_active = TRUE;
-CREATE INDEX IF NOT EXISTS idx_urls_expires_at ON urls(expires_at) WHERE expires_at IS NOT NULL AND is_active = TRUE;
-CREATE INDEX IF NOT EXISTS idx_urls_clicks ON urls(clicks DESC) WHERE is_active = TRUE;
-CREATE INDEX IF NOT EXISTS idx_urls_timestamps ON urls(created_at DESC, last_clicked_at DESC) WHERE is_active = TRUE;
-CREATE INDEX IF NOT EXISTS idx_urls_active_clicks ON urls(id, clicks) WHERE is_active = TRUE;
 CREATE INDEX IF NOT EXISTS idx_urls_domain_id ON urls(domain_id);
+CREATE INDEX IF NOT EXISTS idx_urls_original_url_hash ON urls(original_url_hash);
+CREATE INDEX IF NOT EXISTS idx_urls_created_at ON urls(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_urls_last_clicked_at ON urls(last_clicked_at DESC);
+CREATE INDEX IF NOT EXISTS idx_urls_domain_created ON urls(domain_id, created_at DESC);
 
 
 ------------------[USER URLS]-------------------
@@ -366,17 +364,14 @@ user_stats AS (
 url_stats AS (
     SELECT
         COUNT(*) as total_urls,
-        COUNT(*) FILTER (WHERE is_active = TRUE) as active_urls,
-        COUNT(*) FILTER (WHERE is_active = FALSE) as inactive_urls,
         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days') as new_urls_30d,
         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') as new_urls_7d,
         COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day') as new_urls_24h,
-        COUNT(*) FILTER (WHERE expires_at IS NOT NULL AND expires_at < NOW()) as expired_urls,
         SUM(clicks) as total_clicks,
         SUM(clicks) FILTER (WHERE last_clicked_at >= NOW() - INTERVAL '30 days') as clicks_30d,
         SUM(clicks) FILTER (WHERE last_clicked_at >= NOW() - INTERVAL '7 days') as clicks_7d,
         SUM(clicks) FILTER (WHERE last_clicked_at >= NOW() - INTERVAL '1 day') as clicks_24h,
-        AVG(clicks) FILTER (WHERE is_active = TRUE) as avg_clicks_per_url,
+        AVG(clicks) as avg_clicks_per_url,
         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY clicks) as median_clicks
     FROM urls
 ),
@@ -393,11 +388,17 @@ top_urls AS (
             ) ORDER BY clicks DESC
         ) as top_10_urls
     FROM (
-        SELECT short_code, original_url, clicks, created_at
-        FROM urls
-        WHERE is_active = TRUE
-        ORDER BY clicks DESC
-        LIMIT 10
+        SELECT 
+            short_code, 
+            original_url, 
+            clicks, 
+            created_at
+        FROM 
+            urls        
+        ORDER BY 
+            clicks DESC
+        LIMIT 
+            10
     ) t
 ),
 
@@ -521,11 +522,14 @@ domain_stats AS (
             u.domain_id,
             COUNT(*) as url_count,
             SUM(u.clicks) as total_clicks
-        FROM urls u
-        WHERE u.is_active = TRUE
-        GROUP BY u.domain_id
-        ORDER BY COUNT(*) DESC
-        LIMIT 10
+        FROM 
+            urls u
+        GROUP BY 
+            u.domain_id
+        ORDER BY 
+            COUNT(*) DESC
+        LIMIT 
+            10
     )
     SELECT
         (SELECT COUNT(*) FROM domains) as total_domains,
@@ -605,9 +609,10 @@ conversion_stats AS (
         COUNT(*) as total_urls,
         COALESCE(ROUND((COUNT(*) FILTER (WHERE clicks > 0) * 100.0 / NULLIF(COUNT(*), 0))::numeric, 2), 0) as conversion_rate,
         COALESCE(ROUND((COUNT(*) FILTER (WHERE clicks >= 10) * 100.0 / NULLIF(COUNT(*), 0))::numeric, 2), 0) as urls_with_10plus_clicks_rate
-    FROM urls
-    WHERE is_active = TRUE
-      AND created_at >= NOW() - INTERVAL '30 days'
+    FROM 
+        urls
+    WHERE
+        created_at >= NOW() - INTERVAL '30 days'
 )
 
 -- Agregação final
@@ -627,9 +632,6 @@ SELECT
     -- URLs
     jsonb_build_object(
         'total', url.total_urls,
-        'active', url.active_urls,
-        'inactive', url.inactive_urls,
-        'expired', url.expired_urls,
         'new_30d', url.new_urls_30d,
         'new_7d', url.new_urls_7d,
         'new_24h', url.new_urls_24h,

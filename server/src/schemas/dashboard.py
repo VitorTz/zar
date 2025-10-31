@@ -13,10 +13,7 @@ class UserStats(BaseModel):
 
 
 class UrlStats(BaseModel):
-    total: int
-    active: int
-    inactive: int
-    expired: int
+    total: int    
     new_30d: int
     new_7d: int
     new_24h: int
@@ -122,6 +119,7 @@ class ConversionStats(BaseModel):
 
 class Dashboard(BaseModel):
     
+    total_urls: int
     last_updated: datetime
     users: UserStats
     urls: UrlStats

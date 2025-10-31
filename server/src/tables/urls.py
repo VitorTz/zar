@@ -50,13 +50,11 @@ async def get_redirect_url(short_code: str, conn: Connection) -> Optional[UrlRed
         """
             SELECT
                 urls.id,
-                urls.original_url,
-                urls.expires_at
+                urls.original_url                
             FROM
                 urls
             WHERE
-                short_code = TRIM($1) AND
-                is_active = TRUE
+                short_code = TRIM($1)
         """,
         short_code
     )
@@ -100,14 +98,15 @@ async def get_urls(base_url: str, limit: int, offset: int, conn: Connection) -> 
         """
         SELECT
             u.id,
+            u.title,
+            u.descr,
             u.domain_id,
             uu.user_id,
             u.original_url,
             u.short_code,
             u.clicks,
             COALESCE(uu.is_favorite, FALSE) AS is_favorite,
-            u.created_at,
-            u.expires_at
+            u.created_at            
         FROM 
             urls u
         LEFT JOIN (
@@ -143,134 +142,13 @@ async def get_urls(base_url: str, limit: int, offset: int, conn: Connection) -> 
     )
 
 
-async def get_anonymous_url(domain: Domain, base_url: str, url: URLCreate, conn: Connection) -> Optional[URLResponse]:
-    r = await conn.fetchrow(
-        """
-            SELECT 
-                urls.id,
-                urls.domain_id,
-                urls.original_url,
-                urls.short_code,
-                urls.clicks,
-                urls.created_at,
-                urls.expires_at
-            FROM 
-                urls
-            JOIN 
-                domains ON domains.id = urls.domain_id
-            LEFT JOIN 
-                user_urls ON user_urls.url_id = urls.id
-            WHERE
-                urls.domain_id = $1
-                AND urls.original_url_hash = decode(md5(TRIM($2)), 'hex')
-                AND user_urls.url_id IS NULL
-                AND urls.expires_at IS NULL
-                AND urls.is_active = TRUE
-        """,
-        domain.id,
-        str(url.url)
-    )
-
-    return URLResponse(
-        **dict(r), 
-        short_url=f"{base_url}/api/v1/{r['short_code']}"
-    ) if r else None
-
-
-async def get_user_url(domain: Domain, base_url: str, url: URLCreate, user_id: str, conn: Connection) -> Optional[URLResponse]:
-    r = await conn.fetchrow(
-        """
-            SELECT
-                urls.id,
-                urls.domain_id,
-                user_urls.user_id,
-                urls.original_url,
-                urls.short_code,
-                urls.clicks,
-                user_urls.is_favorite,
-                urls.created_at,
-                urls.expires_at
-            FROM 
-                urls
-            JOIN
-                domains ON domains.id = urls.domain_id
-            JOIN
-                user_urls ON user_urls.url_id = urls.id AND user_urls.user_id = $1
-            WHERE
-                urls.original_url_hash = decode(md5(TRIM($2)), 'hex')
-                AND domains.id = $3
-                AND urls.expires_at IS NULL
-                AND urls.is_active = TRUE
-                AND (urls.expires_at IS NULL OR urls.expires_at = $4::TIMESTAMPTZ)
-        """,
-        user_id,
-        str(url.url),
-        domain.id,
-        url.expires_at
-    )
-
-    return URLResponse(
-        **dict(r),
-        short_url=f"{base_url}/api/v1/{r['short_code']}"
-    ) if r else None
-
-
-async def get_url_if_exists(domain: Domain, url: URLCreate, base_url: str, user: Optional[User], conn: Connection) -> URLResponse:
-    if user: return await get_user_url(domain, base_url, url, user.id, conn)
-    return await get_anonymous_url(domain, base_url, url, conn)
-
-
-async def create_anonymous_url(domain: Domain, url: URLCreate, base_url: str, conn: Connection) -> URLResponse:
-    try:
-        r = await conn.fetchrow(
-            """
-                INSERT INTO urls (
-                    domain_id,
-                    original_url,
-                    original_url_hash,
-                    expires_at
-                )
-                VALUES (
-                    $1,                    
-                    $2,
-                    decode(md5(TRIM($2)), 'hex'),
-                    $3
-                )
-                RETURNING
-                    id,
-                    domain_id,
-                    short_code,
-                    original_url,
-                    created_at,
-                    expires_at
-            """,
-            domain.id,
-            str(url.url),
-            url.expires_at
-        )
-    
-        return URLResponse(
-            **dict(r),
-            short_url=f"{base_url}/api/v1/{r['short_code']}"
-        )
-    except asyncpg.exceptions.CheckViolationError:
-        raise HTTPException(detail=f"Invalid url! {url.url}", status_code=status.HTTP_400_BAD_REQUEST)
-    except asyncpg.exceptions.UniqueViolationError as e:
-        raise HTTPException(detail=f"Invalid url! {url.url}", status_code=status.HTTP_409_CONFLICT)
-    except Exception as e:
-        raise HTTPException(detail=f"{e}", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-async def create_user_url(
+async def create_url(
     domain: Domain,
     url: URLCreate,
-    user: User,
+    user: Optional[User],
     base_url: str,
     conn: Connection
 ) -> URLResponse:
-    if user.id is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User ID is required.")
-    
     try:
         async with conn.transaction():
             r = await conn.fetchrow(
@@ -279,66 +157,61 @@ async def create_user_url(
                         domain_id,
                         original_url,
                         original_url_hash,
-                        expires_at
+                        title,
+                        descr
                     )
                     VALUES (
                         $1, 
                         $2,
                         decode(md5(TRIM($2)), 'hex'),
-                        $3
+                        $3,
+                        $4                        
                     )
                     RETURNING
                         id,
                         domain_id,
+                        title,
+                        descr,
                         short_code,
                         original_url,
-                        created_at,
-                        expires_at
+                        created_at                        
                 """,
                 domain.id,
                 str(url.url),
-                url.expires_at
+                url.title,
+                url.descr
             )
+            
+            if user:
+                await conn.execute(
+                    """
+                        INSERT INTO user_urls (
+                            url_id,
+                            user_id,
+                            is_favorite
+                        )
+                        VALUES 
+                            ($1, $2, $3)
+                        ON CONFLICT 
+                        DO NOTHING
+                    """,
+                    r["id"],
+                    user.id,
+                    url.is_favorite or False
+                )
 
-            await conn.execute(
-                """
-                    INSERT INTO user_urls (
-                        url_id,
-                        user_id,
-                        is_favorite
-                    )
-                    VALUES ($1, $2, $3)
-                    ON CONFLICT DO NOTHING
-                """,
-                r["id"],
-                user.id,
-                url.is_favorite or False
-            )
-
-            return URLResponse(
-                **dict(r),
-                user_id=user.id,
-                is_favorite=url.is_favorite or False,
-                short_url=f"{base_url}/api/v1/{r['short_code']}"
-            )
-    except asyncpg.exceptions.CheckViolationError:
+        return URLResponse(
+            **dict(r),
+            user_id=user.id if user else None,
+            is_favorite=url.is_favorite or False,
+            short_url=f"{base_url}/api/v1/{r['short_code']}"
+        )
+    except asyncpg.exceptions.CheckViolationError:        
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid URL: {url.url}")
     except asyncpg.exceptions.UniqueViolationError:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"URL already exists: {url.url}")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    
-
-async def create_url(
-    domain: Domain,
-    url: URLCreate,
-    user: Optional[User],
-    base_url: str,
-    conn: Connection
-) -> URLResponse:
-    if user:
-        return await create_user_url(domain, url, user, base_url, conn)
-    return await create_anonymous_url(domain, url, base_url, conn)
 
 
 async def update_url_clicks(url_id: int, conn: Connection):
@@ -371,12 +244,13 @@ async def get_user_urls(
             SELECT
                 urls.id,
                 domains.id as domain_id,
+                urls.title,
+                urls.descr,
                 urls.original_url,
                 urls.short_code,
                 urls.clicks,
                 user_urls.is_favorite,
-                urls.created_at,
-                urls.expires_at
+                urls.created_at
             FROM
                 user_urls
             JOIN
@@ -493,32 +367,6 @@ async def add_click_event(url_id: int, request: Request, conn: Connection):
 async def delete_all_urls(conn: Connection):
     await conn.execute("DELETE FROM urls")
 
-
-async def delete_expired_urls(conn: Connection) -> None:
-    await conn.execute(
-        """
-            DELETE FROM 
-                urls
-            WHERE 
-                expires_at IS NOT NULL AND 
-                expires_at < NOW();
-        """
-    )
-
-
-async def soft_delete_expired_urls(conn: Connection) -> None:
-    await conn.execute(
-        """
-        UPDATE 
-            urls
-        SET 
-            is_active = FALSE            
-        WHERE 
-            expires_at IS NOT NULL AND 
-            expires_at < NOW() AND 
-            is_active = TRUE;
-    """)
-    
 
 async def delete_unsafe_urls(conn: Connection):
     await conn.execute(

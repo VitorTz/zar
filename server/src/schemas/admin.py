@@ -92,7 +92,9 @@ class HealthReport(BaseModel):
     status: str
     database: str
     postgres_version: str
+    total_domains: int
     total_urls: int
+    total_users: int
     now: datetime
     memory: MemoryInfo
     cpu: CpuInfo

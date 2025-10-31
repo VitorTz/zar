@@ -146,6 +146,8 @@ async def get_tag_urls(
             u.domain_id,
             uu.user_id,
             u.original_url,
+            u.title,
+            u.descr,
             u.short_code,
             u.clicks,
             COALESCE(uu.is_favorite, FALSE) AS is_favorite,
