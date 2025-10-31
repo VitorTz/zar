@@ -151,8 +151,7 @@ async def get_tag_urls(
             u.short_code,
             u.clicks,
             COALESCE(uu.is_favorite, FALSE) AS is_favorite,
-            u.created_at,
-            u.expires_at
+            u.created_at
         FROM 
             urls u
         JOIN

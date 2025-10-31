@@ -1,5 +1,5 @@
 from src.schemas.user import User
-from src.schemas.urls import URLDelete, CreateFavoriteURL, URLResponse
+from src.schemas.urls import URLDelete, CreateFavoriteURL, UserURLResponse
 from src.schemas.pagination import Pagination
 from src.tables import users as users_table
 from src.tables import urls as urls_table
@@ -15,7 +15,7 @@ async def delete_user_url(user: User, url: URLDelete, conn: Connection):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-async def get_user_urls(user_id: str, request: Request, limit: int, offset: int, conn: Connection) -> Pagination[URLResponse]:
+async def get_user_urls(user_id: str, request: Request, limit: int, offset: int, conn: Connection) -> Pagination[UserURLResponse]:
     return await urls_table.get_user_urls(user_id, limit, offset, util.extract_base_url(request), conn)
 
 

@@ -1,5 +1,5 @@
 from src.schemas.user import User
-from src.schemas.urls import URLCreate, UrlRedirect, URLResponse, UrlStats
+from src.schemas.urls import URLCreate, UrlRedirect, URLResponse, UrlStats, UserURLResponse
 from src.schemas.pagination import Pagination
 from src.schemas.domain import Domain
 from fastapi.exceptions import HTTPException
@@ -224,7 +224,7 @@ async def get_user_urls(
     offset: int, 
     base_url: str, 
     conn: Connection
-) -> Pagination[URLResponse]:
+) -> Pagination[UserURLResponse]:
     total: int = await conn.fetchval(
         """
             SELECT 
@@ -243,22 +243,41 @@ async def get_user_urls(
         """
             SELECT
                 urls.id,
-                domains.id as domain_id,
+                domains.id AS domain_id,
                 urls.title,
                 urls.descr,
                 urls.original_url,
                 urls.short_code,
                 urls.clicks,
                 user_urls.is_favorite,
-                urls.created_at
+                urls.created_at,
+                COALESCE(
+                    jsonb_agg(
+                        DISTINCT jsonb_build_object(
+                            'id', url_tags.id,
+                            'name', url_tags.name,
+                            'descr', url_tags.descr,
+                            'color', url_tags.color,
+                            'user_id', url_tags.user_id,
+                            'created_at', url_tags.created_at
+                        )
+                    ) FILTER (WHERE url_tags.id IS NOT NULL),
+                    '[]'::jsonb
+                ) AS tags
             FROM
                 user_urls
             JOIN
                 urls ON urls.id = user_urls.url_id
             JOIN
                 domains ON domains.id = urls.domain_id
+            LEFT JOIN
+                url_tag_relations utr ON utr.url_id = urls.id
+            LEFT JOIN
+                url_tags ON url_tags.id = utr.tag_id
             WHERE
                 user_urls.user_id = $1
+            GROUP BY
+                urls.id, domains.id, user_urls.is_favorite, user_urls.id
             ORDER BY
                 user_urls.is_favorite DESC,
                 user_urls.id DESC
@@ -269,14 +288,20 @@ async def get_user_urls(
         """,
         user_id,
         limit,
-        offset        
+        offset
     )
+
+    rows = [dict(row) for row in rows]
+    for row in rows:        
+        row['tags'] = json.loads(row["tags"])
 
     return Pagination(
         total=total,
         limit=limit,
         offset=offset,
-        results=[URLResponse(**dict(row), short_url=f"{base_url}/api/v1/{row['short_code']}", user_id=user_id) for row in rows]
+        results=[
+            UserURLResponse(**row, short_url=f"{base_url}/api/v1/{row['short_code']}", user_id=user_id) for row in rows
+        ]
     )
 
 

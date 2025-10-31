@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query, Request, status
 from src.security import get_user_from_token
 from src.schemas.user import User
-from src.schemas.urls import URLDelete, CreateFavoriteURL, URLResponse
+from src.schemas.urls import URLDelete, CreateFavoriteURL, UserURLResponse
 from src.schemas.pagination import Pagination
 from src.services import user as user_service
 from asyncpg import Connection
@@ -11,7 +11,7 @@ from src.db import get_db
 router = APIRouter()
 
 
-@router.get("/url", response_model=Pagination[URLResponse])
+@router.get("/url", response_model=Pagination[UserURLResponse])
 async def get_user_urls(
     request: Request,
     limit: int = Query(default=64, le=64, ge=0),

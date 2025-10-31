@@ -167,3 +167,19 @@ class UrlTagRelationDelete(BaseModel):
 
     url_id: int
     tag_id: int
+
+
+class UserURLResponse(BaseModel):
+    
+    id: int
+    title: Optional[str]
+    descr: Optional[str]
+    domain_id: int
+    user_id: Optional[UUID] = None
+    tags: List[UrlTag]
+    original_url: str
+    short_url: str
+    short_code: str
+    clicks: int = 0
+    is_favorite: Optional[bool] = False
+    created_at: datetime
