@@ -328,16 +328,31 @@ async def update_user_last_login_at(user_id: str, conn: Connection):
     )
 
 async def delete_user_url(user_id: str, url_id: int, conn: Connection):
+    r = await conn.fetchval(
+        """
+            SELECT
+                url_id
+            FROM
+                user_urls
+            WHERE
+                user_id = $1
+                AND url_id = $2
+        """,
+        user_id,
+        url_id
+    )
+
+    if r is None:
+        return
+    
     await conn.execute(
         """
             DELETE FROM
                 urls
             WHERE
-                user_id = $1 AND
-                url_id = $2
+                id = $1
         """,
-        user_id,
-        url_id
+        r
     )
 
 

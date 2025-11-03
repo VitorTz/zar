@@ -184,7 +184,8 @@ CREATE TABLE IF NOT EXISTS url_tags (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT url_tags_unique_tag UNIQUE (user_id, name),
     CONSTRAINT chk_color_hex CHECK (color ~ '^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$'),
-    CONSTRAINT chk_name_length CHECK (length(name) BETWEEN 1 AND 256),
+    CONSTRAINT chk_name_length CHECK (length(name) BETWEEN 1 AND 64),
+    CONSTRAINT chk_descr_length CHECK (length(name) BETWEEN 1 AND 256),
     FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_url_tags_user ON url_tags(user_id);
