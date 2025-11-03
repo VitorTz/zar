@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 
-export type View = "login" | "signup" | "drashboard" | "urls" | "tags";
+export type View = "login" | "signup" | "dashboard" | "urls" | "tags";
 
 interface ViewContextType {
   view: View;

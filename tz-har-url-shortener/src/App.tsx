@@ -20,23 +20,25 @@ import {
 } from 'lucide-react';
 import { api } from './services/TzHarApi';
 import { Constants } from './util/Constants';
-import type { User } from './types/user';
 import type { UrlTag, URLResponse, UrlStats } from './types/URL';
 import type { Dashboard } from './types/dashboard';
 import { generateQrOnCanvas } from './util/qr';
 import type { QrCodeModal } from './types/QrCodeModal';
 import { useUser } from './context/AuthContext';
+import AuthPage from './pages/AuthPage';
+import { useView } from './context/ViewContext';
+import Header from './components/Header';
+import { useUrlTags } from './context/TagContext';
+import SideBar from './components/SideBar';
+import DashboardPage from './pages/Dashboard';
 
 
 const App = () => {
 
-  const { user, setUser, session, setSession, logout} = useUser()
-  const [view, setView] = useState<string>('login');
+  const { user, setUser } = useUser()
+  const { view, setView } = useView()
   const [loading, setLoading] = useState(false);
   
-  // Auth states
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   
   // URL states
   const [urls, setUrls] = useState<URLResponse[]>([]);
@@ -47,12 +49,11 @@ const App = () => {
   const [showUrlModal, setShowUrlModal] = useState(false);
   
   // Tag states
-  const [tags, setTags] = useState<UrlTag[]>([]);
+  const { tags, setTags } = useUrlTags()
   const [showTagModal, setShowTagModal] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [newTagDescription, setNewTagDescription] = useState('');
   const [newTagColor, setNewTagColor] = useState('#3B82F6');
-  
 
   // Dashboard states
   const [dashboardData, setDashboardData] = useState<Dashboard | null>(null);
@@ -108,53 +109,11 @@ const App = () => {
       } else if (view === 'tags') {
         const data = await api.tag.getUserTags();
         setTags(data.results);
-      } else if (view === 'dashboard') {
-        const data = await api.dashboard.getDashboard();
-        setDashboardData(data);
       }
     } catch (error) {
       console.error('Error loading data:', error);
     }
-  };
-
-  const handleLogin = async () => {
-    setLoading(true);
-    try {
-      const userData = await api.auth.login(email, password);
-      const tags = await api.tag.getUserTags()
-      setTags(tags.results)
-      setUser(userData);
-      setView('urls');
-    } catch (error: any) {
-      alert('Login failed: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSignup = async () => {
-    setLoading(true);
-    try {
-      await api.auth.signup(email, password);
-      const userData = await api.auth.login(email, password);
-      setUser(userData);
-      setView('urls');
-    } catch (error: any) {
-      alert('Signup failed: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await api.auth.logout();
-      setUser(null);
-      setView('login');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  };
+  };   
 
   const handleShortenUrl = async () => {
     if (!newUrl) return;
@@ -384,165 +343,21 @@ const App = () => {
   const hasActiveFilters = searchQuery || filterFavorites || filterTags.length > 0 || sortBy !== 'date-desc';
 
   if (!user) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md p-8">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-2xl mb-4">
-              <Link2 className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-3xl font-bold text-slate-900">TzHar URL</h1>
-            <p className="text-slate-600 mt-2">Shorten and manage your links</p>
-          </div>
-
-          <div className="flex gap-2 mb-6">
-            <button
-              onClick={() => setView('login')}
-              className={`flex-1 py-2.5 rounded-lg font-medium transition-all duration-200 ${
-                view === 'login'
-                  ? 'bg-indigo-600 text-white shadow-md hover:shadow-lg hover:bg-indigo-700 active:scale-95'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:shadow-sm active:scale-98'
-              }`}
-            >
-              Login
-            </button>
-            <button
-              onClick={() => setView('signup')}
-              className={`flex-1 py-2.5 rounded-lg font-medium transition-all duration-200 ${
-                view === 'signup'
-                  ? 'bg-indigo-600 text-white shadow-md hover:shadow-lg hover:bg-indigo-700 active:scale-95'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:shadow-sm active:scale-98'
-              }`}
-            >
-              Sign Up
-            </button>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && (view === 'login' ? handleLogin() : handleSignup())}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                placeholder="you@example.com"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && (view === 'login' ? handleLogin() : handleSignup())}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                placeholder="••••••••"
-              />
-            </div>
-            <button
-              onClick={view === 'login' ? handleLogin : handleSignup}
-              disabled={loading}
-              className="w-full bg-indigo-600 text-white py-3 rounded-lg font-medium hover:bg-indigo-700 hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md active:scale-98"
-            >
-              {loading ? 'Loading...' : view === 'login' ? 'Login' : 'Create Account'}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    return <AuthPage/>
   }
 
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center">
-                <Link2 className="w-6 h-6 text-white" />
-              </div>
-              <h1 className="text-xl font-bold text-slate-900">TzHar URL</h1>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-slate-600 hidden sm:inline">{user.email}</span>
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg transition-all duration-200 hover:shadow-sm active:scale-95"
-              >
-                <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline">Logout</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header/>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col md:flex-row gap-6">
-          {/* Sidebar */}
-          <aside className="w-full md:w-64 flex-shrink-0">
-            <nav className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-2">
-              <button
-                onClick={() => setView('urls')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                  view === 'urls'
-                    ? 'bg-indigo-50 text-indigo-600 font-medium shadow-sm'
-                    : 'text-slate-700 hover:bg-slate-50 hover:shadow-sm active:scale-98'
-                }`}
-              >
-                <Link2 className="w-5 h-5" />
-                My URLs
-              </button>
-              <button
-                onClick={() => setView('tags')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                  view === 'tags'
-                    ? 'bg-indigo-50 text-indigo-600 font-medium shadow-sm'
-                    : 'text-slate-700 hover:bg-slate-50 hover:shadow-sm active:scale-98'
-                }`}
-              >
-                <Tag className="w-5 h-5" />
-                Tags
-              </button>
-              <button
-                onClick={() => setView('dashboard')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                  view === 'dashboard'
-                    ? 'bg-indigo-50 text-indigo-600 font-medium shadow-sm'
-                    : 'text-slate-700 hover:bg-slate-50 hover:shadow-sm active:scale-98'
-                }`}
-              >
-                <BarChart3 className="w-5 h-5" />
-                Dashboard
-              </button>
-            </nav>
-          </aside>
+          <SideBar/>
 
           {/* Main Content */}
           <main className="flex-1">
-            {view === 'dashboard' && dashboardData && (
-              <div className="space-y-6">
-                <h2 className="text-2xl font-bold text-slate-900">Dashboard</h2>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
-                        <Link2 className="w-6 h-6 text-indigo-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm text-slate-600">Total URLs</p>
-                        <p className="text-2xl font-bold text-slate-900">{dashboardData.total_urls}</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                </div>
-              </div>
-            )}
+            {view === 'dashboard' && <DashboardPage/> }
 
             {view === 'urls' && (
               <div className="space-y-6">
