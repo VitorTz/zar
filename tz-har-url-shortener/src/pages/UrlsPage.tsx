@@ -30,6 +30,7 @@ import { useUrlTags } from "../context/TagContext";
 import { api } from "../services/TzHarApi";
 import { generateQrOnCanvas } from "../util/qr";
 import type { QrCodeModal } from "../types/QrCodeModal";
+import { useDialog } from "../hooks/useDialog";
 
 type UrlSortBy =
   | "date-desc"
@@ -50,6 +51,8 @@ const urlSortByList: { value: UrlSortBy; label: string }[] = [
 
 export default function UrlsPage() {
   const { urls, setUrls } = useUrls();
+  const { showConfirm, showAlert, AlertRenderer, ConfirmRenderer } =
+    useDialog();
 
   const { tags } = useUrlTags();
 
@@ -209,7 +212,7 @@ export default function UrlsPage() {
         })
       );
     } catch (error: any) {
-      alert("Error removing tag: " + error.message);
+      showAlert("Error removing tag: " + error.message);
     }
   };
 
@@ -222,7 +225,7 @@ export default function UrlsPage() {
         )
       );
     } catch (error: any) {
-      alert("Error updating favorite: " + error.message);
+      showAlert("Error updating favorite: " + error.message);
     }
   };
 
@@ -261,12 +264,13 @@ export default function UrlsPage() {
   };
 
   const handleDeleteUrl = async (id: number) => {
-    if (!confirm("Delete this URL?")) return;
+    const confirm = await showConfirm("Delete this URL?");
+    if (!confirm) return;
     try {
       await api.url.deleteUserUrl(id);
       setUrls(urls.filter((url) => url.id !== id));
     } catch (error: any) {
-      alert("Error deleting URL: " + error.message);
+      showAlert("Error deleting URL: " + error.message);
     }
   };
 
@@ -288,11 +292,15 @@ export default function UrlsPage() {
       setShowUrlModal(false);
       setUrls([...[urlResponse], ...urls]);
     } catch (error: any) {
-      alert("Error shortening URL: " + error.message);
+      showAlert("Error shortening URL: " + error.message);
     } finally {
       setLoading(false);
     }
   };
+
+  const addTagToTagList = (tag: UrlTag, tagList: UrlTag[]): UrlTag[] => {
+    return [...[tag], ...tagList.filter(t => t.id !== tag.id)]
+  }
 
   const handleAddTagToUrl = async (urlId: number, tag: UrlTag) => {
     try {
@@ -301,12 +309,12 @@ export default function UrlsPage() {
       setUrls(
         urls.map((url) => {
           return url.id === urlId
-            ? { ...url, tags: [...[tag], ...url.tags] }
+            ? { ...url, tags: addTagToTagList(tag, url.tags) }
             : url;
         })
       );
     } catch (error: any) {
-      alert("Error adding tag: " + error.message);
+      showAlert("Error adding tag: " + error.message);
     }
   };
 
@@ -907,13 +915,13 @@ export default function UrlsPage() {
                 <button
                   key={tag.id}
                   onClick={() => handleAddTagToUrl(selectedUrlForTag, tag)}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 transition-all duration-200 border border-transparent hover:border-slate-200 hover:shadow-sm active:scale-98"
+                  className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-slate-50 transition-all duration-200 border border-transparent hover:border-slate-200 hover:shadow-sm active:scale-98 min-w-0"
                 >
                   <div
                     className="w-8 h-8 rounded-lg"
                     style={{ backgroundColor: tag.color }}
                   />
-                  <span className="font-medium text-slate-900">{tag.name}</span>
+                  <span className="font-medium text-slate-900 truncate">{tag.name}</span>
                 </button>
               ))}
             </div>
@@ -945,7 +953,7 @@ export default function UrlsPage() {
             {/* Conteúdo rolável */}
             <div className="overflow-y-auto p-6 space-y-4">
               {/* URL Info */}
-              
+
               {/* Conteúdo dinâmico */}
               {loadingStats ? (
                 <div className="flex items-center justify-center py-12">
@@ -1215,6 +1223,8 @@ export default function UrlsPage() {
           </div>
         </div>
       )}
+      {AlertRenderer}
+      {ConfirmRenderer}
     </>
   );
 }

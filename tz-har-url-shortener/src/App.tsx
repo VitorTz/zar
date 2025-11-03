@@ -6,15 +6,20 @@ import SideBar from './components/SideBar';
 import DashboardPage from './pages/Dashboard';
 import UrlsPage from './pages/UrlsPage';
 import TagsPage from './pages/TagsPage';
+import { useDialog } from './hooks/useDialog';
+import ERDiagram from './pages/ErDiagram';
+import APIRoutesExplorer from './pages/ApiPage';
 
 
 const App = () => {
-
+  
+  const { AlertRenderer, ConfirmRenderer } = useDialog()
   const { user } = useUser()
   const { view } = useView()
 
   if (!user) {
     return <AuthPage/>
+    
   }
 
   return (
@@ -27,10 +32,13 @@ const App = () => {
             {view === 'dashboard' && <DashboardPage/> }
             {view === 'urls' && <UrlsPage/>}
             {view === 'tags' && <TagsPage/> }
+            {view === 'db' && <ERDiagram/> }
+            {view === 'api' && <APIRoutesExplorer/> }
+            {ConfirmRenderer}
+            {AlertRenderer}
           </main>
         </div>
       </div>
-     
     </div>
   );
 };

@@ -3,9 +3,14 @@ import { Plus, Trash2, Tag, X } from "lucide-react";
 import { useUrlTags } from "../context/TagContext";
 import { api } from "../services/TzHarApi";
 import { Constants } from "../util/Constants";
+import { useDialog } from "../hooks/useDialog";
+import { useUrls } from "../context/UrlsContext";
 
 export default function TagsPage() {
 
+  const { showConfirm, showAlert, AlertRenderer, ConfirmRenderer } = useDialog()
+
+  const { urls, setUrls } = useUrls()
   const { tags, setTags } = useUrlTags();
 
   const [showTagModal, setShowTagModal] = useState(false);
@@ -14,12 +19,17 @@ export default function TagsPage() {
   const [newTagColor, setNewTagColor] = useState("#3B82F6");
 
   const handleDeleteTag = async (id: number) => {
-    if (!confirm("Delete this tag?")) return;
+    const confirm = await showConfirm("Delete this tag?")
+    if (!confirm) return;
+
     try {
       await api.tag.deleteTag(id);
       setTags(tags.filter(tag => tag.id !== id))
+      setUrls(urls.map(url => {return {
+        ...url, tags: url.tags.filter(tag => tag.id !== id)
+      }}))
     } catch (error: any) {
-      alert("Error deleting tag: " + error.message);
+      showAlert("Error deleting tag: " + error.message)
     }
   };
 
@@ -42,7 +52,7 @@ export default function TagsPage() {
       clearModal()
       setTags([...[urlTag], ...tags])
     } catch (error: any) {
-      alert("Error creating tag: " + error.message);
+      showAlert("Error creating tag: " + error.message)
     }
   };
 
@@ -260,6 +270,8 @@ export default function TagsPage() {
           </div>
         </div>
       )}
+      {AlertRenderer}
+      {ConfirmRenderer}
     </>
   );
 }
