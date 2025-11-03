@@ -25,11 +25,12 @@ import type { UrlTag, URLResponse, UrlStats } from './types/URL';
 import type { Dashboard } from './types/dashboard';
 import { generateQrOnCanvas } from './util/qr';
 import type { QrCodeModal } from './types/QrCodeModal';
+import { useUser } from './context/AuthContext';
 
 
 const App = () => {
-  
-  const [user, setUser] = useState<User | null>(null);
+
+  const { user, setUser, session, setSession, logout} = useUser()
   const [view, setView] = useState<string>('login');
   const [loading, setLoading] = useState(false);
   
@@ -68,7 +69,7 @@ const App = () => {
   const [notification, setNotification] = useState<{type: string, message: string, icon: string} | null>(null);
   
   // Redirect warning
-  const [redirectWarning, setRedirectWarning] = useState<{url: string, title: string | null} | null>(null);
+  const [redirectWarning, setRedirectWarning] = useState<{url: string, title: string | null, short_url: string} | null>(null);
   
   // QR Code modal
   const [qrCodeModal, setQrCodeModal] = useState<QrCodeModal | null>(null);
@@ -81,9 +82,7 @@ const App = () => {
   const [sortBy, setSortBy] = useState('date-desc'); // date-desc, date-asc, clicks-desc, clicks-asc, alpha-asc, alpha-desc
 
   useEffect(() => {
-    if (user) {
-      loadData();
-    }
+    if (user) { loadData(); }
   }, [user, view]);
 
   // Generate QR Code when modal opens
@@ -122,8 +121,10 @@ const App = () => {
     setLoading(true);
     try {
       const userData = await api.auth.login(email, password);
+      const tags = await api.tag.getUserTags()
+      setTags(tags.results)
       setUser(userData);
-      setView('dashboard');
+      setView('urls');
     } catch (error: any) {
       alert('Login failed: ' + error.message);
     } finally {
@@ -137,7 +138,7 @@ const App = () => {
       await api.auth.signup(email, password);
       const userData = await api.auth.login(email, password);
       setUser(userData);
-      setView('dashboard');
+      setView('urls');
     } catch (error: any) {
       alert('Signup failed: ' + error.message);
     } finally {
@@ -251,9 +252,10 @@ const App = () => {
     setLoadingStats(true);
     try {
       const stats = await api.url.getUrlStats(url.short_code);
+      console.log(stats)
       setUrlStats(stats);
     } catch (error: any) {
-      alert('Error loading stats: ' + error.message);
+      setUrlStats(null);
     } finally {
       setLoadingStats(false);
     }
@@ -273,13 +275,14 @@ const App = () => {
     e.preventDefault();
     setRedirectWarning({
       url: url.original_url,
+      short_url: url.short_url,
       title: url.title
     });
   };
 
   const confirmRedirect = () => {
     if (redirectWarning) {
-      window.open(redirectWarning.url, '_blank', 'noopener,noreferrer');
+      window.open(redirectWarning.short_url, '_blank', 'noopener,noreferrer');
       setRedirectWarning(null);
     }
   };
@@ -483,17 +486,6 @@ const App = () => {
           <aside className="w-full md:w-64 flex-shrink-0">
             <nav className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 space-y-2">
               <button
-                onClick={() => setView('dashboard')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                  view === 'dashboard'
-                    ? 'bg-indigo-50 text-indigo-600 font-medium shadow-sm'
-                    : 'text-slate-700 hover:bg-slate-50 hover:shadow-sm active:scale-98'
-                }`}
-              >
-                <BarChart3 className="w-5 h-5" />
-                Dashboard
-              </button>
-              <button
                 onClick={() => setView('urls')}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
                   view === 'urls'
@@ -514,6 +506,17 @@ const App = () => {
               >
                 <Tag className="w-5 h-5" />
                 Tags
+              </button>
+              <button
+                onClick={() => setView('dashboard')}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                  view === 'dashboard'
+                    ? 'bg-indigo-50 text-indigo-600 font-medium shadow-sm'
+                    : 'text-slate-700 hover:bg-slate-50 hover:shadow-sm active:scale-98'
+                }`}
+              >
+                <BarChart3 className="w-5 h-5" />
+                Dashboard
               </button>
             </nav>
           </aside>
@@ -1418,7 +1421,7 @@ const App = () => {
                     </div>
                   </div>
                 </div>
-              ) : null}
+              ) : <p>This url has not statistics yet!</p>}
             </div>
           </div>
         </div>

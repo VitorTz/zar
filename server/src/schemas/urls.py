@@ -29,30 +29,6 @@ class CreateFavoriteURL(BaseModel):
     is_favorite: bool
 
 
-class URLResponse(BaseModel):
-    
-    id: int
-    title: Optional[str]
-    descr: Optional[str]
-    domain_id: int
-    user_id: Optional[UUID] = None
-    original_url: str
-    short_url: str
-    short_code: str
-    clicks: int = 0
-    is_favorite: Optional[bool] = False
-    created_at: datetime
-
-
-class UrlPagination(BaseModel):
-
-    total: int
-    limit: int
-    offset: int
-    page: int
-    pages: int
-    results: List[URLResponse]
-
 
 class UrlPopular(BaseModel):
 
@@ -167,6 +143,32 @@ class UrlTagRelationDelete(BaseModel):
 
     url_id: int
     tag_id: int
+
+
+class URLResponse(BaseModel):
+    
+    id: int
+    title: Optional[str]
+    descr: Optional[str]
+    domain_id: int
+    user_id: Optional[UUID] = None
+    tags: Optional[List[UrlTag]] = []
+    original_url: str
+    short_url: str
+    short_code: str
+    clicks: int = 0
+    is_favorite: Optional[bool] = False
+    created_at: datetime
+
+
+class UrlPagination(BaseModel):
+
+    total: int
+    limit: int
+    offset: int
+    page: int
+    pages: int
+    results: List[URLResponse]
 
 
 class UserURLResponse(BaseModel):

@@ -1,24 +1,38 @@
-import { createContext, useContext } from "react";
-import type { User } from "../types/user";
-import type { NotificationType } from "../types/notification";
+import { createContext, useContext, useState, type ReactNode } from "react";
+import type { User, UserSession } from "../types/user";
 
 
-interface AuthContextType {
+interface UserContextType {
   user: User | null;
-  isLoading: boolean;
-  login: (email: string, pass: string) => Promise<void>;
-  signup: (email: string, pass: string) => Promise<void>;
-  logout: () => Promise<void>;
-  showNotification: (message: string, type: NotificationType) => void;
+  session: UserSession | null;
+  setUser: (user: User | null) => void;
+  setSession: (session: UserSession | null) => void;
+  logout: () => void;
 }
 
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const UserContext = createContext<UserContextType | undefined>(undefined);
 
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+export const UserProvider = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<UserSession | null>(null);
+
+  const logout = () => {
+    setUser(null);
+    setSession(null);
+  };
+
+  return (
+    <UserContext.Provider value={{ user, session, setUser, setSession, logout }}>
+      {children}
+    </UserContext.Provider>
+  );
+};
+
+
+export const useUser = (): UserContextType => {
+  const context = useContext(UserContext);
+  if (!context) throw new Error("useUser must be used within a UserProvider");
   return context;
 };

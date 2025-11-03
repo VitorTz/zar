@@ -16,6 +16,7 @@ export interface URLResponse {
   user_id?: string | null;
   original_url: string;
   short_url: string;
+  tags: UrlTag[]
   short_code: string;
   clicks: number;
   is_favorite?: boolean | null;

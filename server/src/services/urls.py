@@ -50,7 +50,7 @@ async def shorten(url: URLCreate, request: Request, conn: Connection, refresh_to
         user = await users_table.get_user_by_refresh_token(refresh_token, conn)
         if user:
             session_token: SessionToken = security.create_session_token(user.id)
-            await users_table.update_user_session_token(user.id, session_token, conn)
+            await users_table.update_user_session_token(user.id, session_token.refresh_token, conn)
             security.set_session_token_cookie(response, session_token)
             return response
 
