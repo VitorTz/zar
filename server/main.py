@@ -95,18 +95,16 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 
 
 origins = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://localhost:8000",
-    "localhost:8000"
+    "https://haar.fly.dev",
 ]
+
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
